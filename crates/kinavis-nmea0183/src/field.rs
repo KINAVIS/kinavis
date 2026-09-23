@@ -6,6 +6,7 @@
 
 use core::str::FromStr;
 
+use kinavis_kernel::error::ensure_range;
 use kinavis_kernel::gnss::Dop;
 use kinavis_kernel::time::Civil;
 use kinavis_kernel::{
@@ -15,6 +16,24 @@ use kinavis_kernel::{
 
 use crate::error::NmeaError;
 use crate::sentence::{Date, Mode, Status, TimeOfDay};
+
+/// Plausibility bounds, inclusive. A value outside is a corrupt field, not a
+/// measurement, and is rejected as [`NmeaError::Value`]; the bounds also cap
+/// the length of a re-encoded sentence.
+pub(crate) mod bounds {
+    /// Speed over ground, knots.
+    pub(crate) const SPEED_KNOTS: (f64, f64) = (0.0, 1000.0);
+    /// Speed over ground, km/h: the same limit as [`SPEED_KNOTS`].
+    pub(crate) const SPEED_KMH: (f64, f64) = (0.0, 1852.0);
+    /// Antenna altitude above the geoid, metres.
+    pub(crate) const ALTITUDE_METRES: (f64, f64) = (-10_000.0, 100_000.0);
+    /// Geoid separation, metres; the real range is about −107 m to +86 m.
+    pub(crate) const GEOID_SEPARATION_METRES: (f64, f64) = (-1000.0, 1000.0);
+    /// Dilution of precision; receivers report 99.9 or 99.99 for "no fix".
+    pub(crate) const DOP: (f64, f64) = (0.0, 100.0);
+    /// Age of the differential correction, seconds.
+    pub(crate) const DIFFERENTIAL_AGE_SECONDS: (f64, f64) = (0.0, 9999.0);
+}
 
 /// Field with its index, for error reporting.
 #[derive(Debug, Clone, Copy)]
@@ -40,6 +59,17 @@ impl<'a> Field<'a> {
             index: self.index,
             error,
         }
+    }
+
+    /// Decimal number within `(min, max)`, inclusive.
+    pub(crate) fn bounded_decimal(
+        &self,
+        expected: &'static str,
+        (min, max): (f64, f64),
+    ) -> Result<f64, NmeaError> {
+        let value = self.decimal(expected)?;
+        ensure_range(expected, value, min, max).map_err(|e| self.value(e))?;
+        Ok(value)
     }
 
     /// Field as `&str`; input is ASCII, so this cannot fail.
@@ -190,7 +220,7 @@ impl<'a> Field<'a> {
         if self.is_empty() {
             return Ok(None);
         }
-        Speed::from_knots(self.decimal("speed")?)
+        Speed::from_knots(self.bounded_decimal("speed", bounds::SPEED_KNOTS)?)
             .map(Some)
             .map_err(|e| self.value(e))
     }
@@ -199,7 +229,7 @@ impl<'a> Field<'a> {
         if self.is_empty() {
             return Ok(None);
         }
-        Speed::from_kilometres_per_hour(self.decimal("speed")?)
+        Speed::from_kilometres_per_hour(self.bounded_decimal("speed", bounds::SPEED_KMH)?)
             .map(Some)
             .map_err(|e| self.value(e))
     }
@@ -243,11 +273,16 @@ impl<'a> Field<'a> {
             .map_err(|e| self.value(e))
     }
 
-    pub(crate) fn optional_metres(&self) -> Result<Option<Distance>, NmeaError> {
+    /// Metres within `bounds`.
+    pub(crate) fn optional_metres(
+        &self,
+        expected: &'static str,
+        bounds: (f64, f64),
+    ) -> Result<Option<Distance>, NmeaError> {
         if self.is_empty() {
             return Ok(None);
         }
-        Distance::from_metres(self.decimal("distance")?)
+        Distance::from_metres(self.bounded_decimal(expected, bounds)?)
             .map(Some)
             .map_err(|e| self.value(e))
     }
@@ -256,7 +291,7 @@ impl<'a> Field<'a> {
         if self.is_empty() {
             return Ok(None);
         }
-        Dop::new(self.decimal("dilution of precision")?)
+        Dop::new(self.bounded_decimal("dilution of precision", bounds::DOP)?)
             .map(Some)
             .map_err(|e| self.value(e))
     }

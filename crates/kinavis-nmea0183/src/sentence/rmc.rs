@@ -127,7 +127,7 @@ impl fmt::Display for Rmc {
             out.write_str(",")?;
             encode::optional(out, self.speed_over_ground.map(Knots))?;
             out.write_str(",")?;
-            encode::optional(out, self.course_over_ground.map(|c| Degrees(c.degrees())))?;
+            encode::optional(out, self.course_over_ground.map(|c| Direction(c.degrees())))?;
             out.write_str(",")?;
             encode::optional(out, self.date)?;
             out.write_str(",")?;
@@ -152,6 +152,20 @@ pub(crate) struct Knots(pub(crate) Speed);
 impl fmt::Display for Knots {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{:.1}", self.0.knots())
+    }
+}
+
+/// Direction in `[0°, 360°)`, one decimal. Values that would round to
+/// `360.0` are written as `0.0`, which is the same direction and parses back.
+pub(crate) struct Direction(pub(crate) f64);
+
+impl fmt::Display for Direction {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if self.0 >= 359.95 {
+            f.write_str("0.0")
+        } else {
+            write!(f, "{:.1}", self.0)
+        }
     }
 }
 

@@ -2,8 +2,9 @@
 
 #![allow(clippy::unwrap_used, clippy::indexing_slicing)]
 
-use kinavis_nmea0183::{parse, Sentence};
+use kinavis_nmea0183::{encode, parse, NmeaError, Sentence, MAX_SENTENCE_BYTES};
 use proptest::prelude::*;
+use proptest::test_runner::TestCaseError;
 
 /// Sentence-like byte strings, so tests reach the decoders instead of failing
 /// at framing.
@@ -54,11 +55,16 @@ proptest! {
             if matches!(sentence, Sentence::Unsupported { .. }) {
                 return Ok(());
             }
-            let written = format!("{sentence}");
-            let again = parse(written.as_bytes()).unwrap();
-            // Formatting rounds to wire precision; the second round trip is a
+            let mut out = [0_u8; MAX_SENTENCE_BYTES];
+            let length = match encode(&sentence, &mut out) {
+                Ok(length) => length,
+                Err(NmeaError::TooLong { .. }) => return Ok(()),
+                Err(error) => return Err(TestCaseError::fail(format!("{error:?}"))),
+            };
+            let again = parse(&out[..length]).unwrap();
+            // Writing rounds to wire precision; the second round trip is a
             // fixed point.
-            prop_assert_eq!(format!("{again}"), written);
+            prop_assert_eq!(again.to_string(), sentence.to_string());
         }
     }
 }

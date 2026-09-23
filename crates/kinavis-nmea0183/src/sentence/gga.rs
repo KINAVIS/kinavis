@@ -15,7 +15,7 @@ use kinavis_kernel::{Distance, Position};
 
 use crate::encode;
 use crate::error::{NmeaError, TranslationError};
-use crate::field::Field;
+use crate::field::{bounds, Field};
 use crate::frame::Frame;
 use crate::sentence::{Date, Talker, TimeOfDay};
 
@@ -74,15 +74,17 @@ impl Gga {
             })?;
         let satellites = next().optional_unsigned("satellite count")?;
         let hdop = next().optional_dop()?;
-        let altitude = next().optional_metres()?;
+        let altitude = next().optional_metres("altitude", bounds::ALTITUDE_METRES)?;
         next().expect_letter(b'M', "altitude unit")?;
-        let geoid_separation = next().optional_metres()?;
+        let geoid_separation =
+            next().optional_metres("geoid separation", bounds::GEOID_SEPARATION_METRES)?;
         next().expect_letter(b'M', "geoid separation unit")?;
         let age = next();
         let differential_age = if age.is_empty() {
             None
         } else {
-            let seconds = age.decimal("differential age")?;
+            let seconds =
+                age.bounded_decimal("differential age", bounds::DIFFERENTIAL_AGE_SECONDS)?;
             Some(
                 Duration::try_from_secs_f64(seconds).map_err(|_| NmeaError::BadField {
                     index: age.index,

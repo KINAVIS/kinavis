@@ -13,6 +13,7 @@ use crate::error::NmeaError;
 use crate::field::Field;
 use crate::frame::Frame;
 use crate::sentence::gga::OneDecimal;
+use crate::sentence::rmc::Direction;
 use crate::sentence::{Mode, Talker};
 
 /// Course and speed over the ground.
@@ -86,9 +87,9 @@ impl fmt::Display for Vtg {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         encode::sentence(f, |out| {
             write!(out, "{}VTG,", self.talker)?;
-            encode::optional(out, self.course_true.map(|c| OneDecimal(c.degrees())))?;
+            encode::optional(out, self.course_true.map(|c| Direction(c.degrees())))?;
             out.write_str(",T,")?;
-            encode::optional(out, self.course_magnetic.map(|c| OneDecimal(c.degrees())))?;
+            encode::optional(out, self.course_magnetic.map(|c| Direction(c.degrees())))?;
             out.write_str(",M,")?;
             encode::optional(out, self.speed_knots.map(|s| OneDecimal(s.knots())))?;
             out.write_str(",N,")?;

@@ -10,9 +10,9 @@ use kinavis_kernel::KernelError;
 #[non_exhaustive]
 #[derive(Debug, Clone, PartialEq)]
 pub enum NmeaError {
-    /// Sentence longer than the standard allows.
+    /// Sentence, read or to be written, longer than the standard allows.
     TooLong {
-        /// Input length.
+        /// Sentence length.
         length: usize,
         /// Maximum length, terminator included.
         limit: usize,
@@ -51,7 +51,7 @@ pub enum NmeaError {
         expected: &'static str,
     },
     /// Field parsed but its value is outside the domain (latitude 95°, negative
-    /// DOP).
+    /// DOP) or the plausibility bounds (speed over 1000 kn).
     Value {
         /// Zero-based field index after the address.
         index: usize,

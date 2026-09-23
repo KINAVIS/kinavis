@@ -7,7 +7,8 @@
 //!    mandatory checksum. Any failure is an [`NmeaError`].
 //! 2. **Decoding** into typed records — [`Rmc`], [`Gga`], [`Gll`], [`Vtg`] —
 //!    whose fields are kernel types ([`Position`], [`Speed`], [`TrueCourse`]);
-//!    out-of-domain values (latitude 95°) are rejected here. AIS arrives as
+//!    out-of-domain values (latitude 95°) and implausible ones (see
+//!    [Plausibility bounds](#plausibility-bounds)) are rejected here. AIS arrives as
 //!    [`Vdm`] with the payload still armoured; decoding it is the AIS crate's
 //!    job.
 //! 3. **Translation** into a [`GnssFix`] via `TryFrom<Rmc>` or [`Gga::fix_on`].
@@ -41,6 +42,23 @@
 //! [`Speed`]: kinavis_kernel::Speed
 //! [`TrueCourse`]: kinavis_kernel::TrueCourse
 //! [`GnssFix`]: kinavis_kernel::GnssFix
+//!
+//! # Plausibility bounds
+//!
+//! A value outside these inclusive bounds is a corrupt field, not a
+//! measurement, and fails with [`NmeaError::Value`]:
+//!
+//! | Field | Bounds |
+//! |---|---|
+//! | Speed over ground | 0 to 1000 kn; 0 to 1852 km/h |
+//! | Altitude (GGA) | −10 000 m to 100 000 m |
+//! | Geoid separation (GGA) | −1000 m to 1000 m |
+//! | Dilution of precision | above 0, at most 100 |
+//! | Differential age (GGA) | 0 s to 9999 s |
+//!
+//! [`encode`] refuses a sentence longer than [`MAX_SENTENCE_BYTES`] with
+//! [`NmeaError::TooLong`]. RMC, GLL, VTG and VDM always fit; a GGA can exceed
+//! the limit only with several fields near their bounds at once.
 //!
 //! # Not supported
 //!

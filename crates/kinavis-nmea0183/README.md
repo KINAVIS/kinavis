@@ -10,7 +10,10 @@ translated into a kernel `GnssFix`. The sentence never reaches the domain.
 - Sentences: `RMC`, `GGA`, `GLL`, `VTG`; `VDM`/`VDO` with the AIS payload still
   armoured (decoded by `kinavis-ais`). Others are returned as
   `Sentence::Unsupported` with a verified checksum.
-- Encoding as well as parsing, for generation and round-trip tests.
+- Plausibility bounds on numeric fields (speed, altitude, DOP, differential
+  age): a value outside is rejected as a corrupt field.
+- Encoding as well as parsing, for generation and round-trip tests; a sentence
+  longer than the standard's 82 bytes is refused, never written.
 - No allocation: parses `&[u8]` in place.
 - No panics: every failure is an `NmeaError`.
 

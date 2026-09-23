@@ -11,9 +11,10 @@ use core::time::Duration;
 
 use kinavis_kernel::gnss::FixType;
 use kinavis_kernel::GnssFix;
+use kinavis_kernel::KernelError;
 use kinavis_nmea0183::{
     encode, parse, Channel, Date, Mode, NmeaError, Sentence, Status, Talker, TimeOfDay,
-    TranslationError, MAX_PAYLOAD_CHARS,
+    TranslationError, MAX_PAYLOAD_CHARS, MAX_SENTENCE_BYTES,
 };
 
 #[test]
@@ -350,4 +351,68 @@ fn a_dop_below_the_written_precision_still_parses_after_writing() {
         panic!("not GGA")
     };
     assert_eq!(gga.hdop.unwrap().value(), 0.1);
+}
+
+/// `$body*hh`.
+fn with_checksum(body: &str) -> String {
+    let sum = body.bytes().fold(0_u8, |sum, byte| sum ^ byte);
+    format!("${body}*{sum:02X}")
+}
+
+#[test]
+fn values_beyond_the_plausibility_bounds_are_refused_by_field() {
+    let cases = [
+        // Fuzz-found: a 55-digit speed that re-encoded past 82 bytes.
+        (
+            "GPRMC,,V,,,,,1111111111111111111111111111111111111111111111111111113,333,,,,N",
+            6,
+        ),
+        ("GPRMC,,V,,,,,-0.1,,,,,N", 6),
+        ("GPVTG,,T,,M,,N,1852.1,K,A", 6),
+        ("GPGGA,,,,,,1,,100.1,,M,,M,,", 7),
+        ("GPGGA,,,,,,1,,,100000.1,M,,M,,", 8),
+        ("GPGGA,,,,,,1,,,,M,-1000.1,M,,", 10),
+        ("GPGGA,,,,,,1,,,,M,,M,9999.1,", 12),
+    ];
+    for (body, field) in cases {
+        match parse(with_checksum(body).as_bytes()) {
+            Err(NmeaError::Value {
+                index,
+                error: KernelError::OutOfRange { .. },
+            }) => assert_eq!(index, field, "{body}"),
+            other => panic!("{body}: {other:?}"),
+        }
+    }
+}
+
+#[test]
+fn sentences_at_their_bounds_fit_the_standard_length() {
+    // Shortest input forms of the widest values: every field grows on writing.
+    let bodies = [
+        "GPRMC,000000,A,8959.99999,S,17959.99999,W,1000,359.99,311299,180,W,A",
+        "GPGLL,8959.99999,S,17959.99999,W,000000,A,A",
+        "GPVTG,359.99,T,359.99,M,1000,N,1852,K,A",
+        "GPGGA,000000,8959.99999,S,17959.99999,W,8,99,99.99,-9999.9,M,-999.9,M,,1023",
+    ];
+    for body in bodies {
+        let sentence = parse(with_checksum(body).as_bytes()).unwrap();
+        let mut out = [0_u8; MAX_SENTENCE_BYTES];
+        let length = encode(&sentence, &mut out).unwrap_or_else(|e| panic!("{body}: {e}"));
+        let again = parse(&out[..length]).unwrap();
+        assert_eq!(again.to_string(), sentence.to_string(), "{body}");
+    }
+}
+
+#[test]
+fn a_sentence_that_would_exceed_the_standard_length_is_refused_by_encode() {
+    let body = "GPGGA,000000,0000,N,00000,E,1,99,100,-10000,M,-1000,M,9999,9999";
+    let sentence = parse(with_checksum(body).as_bytes()).unwrap();
+    assert!(sentence.to_string().len() + 2 > MAX_SENTENCE_BYTES);
+    assert!(matches!(
+        encode(&sentence, &mut [0_u8; 256]),
+        Err(NmeaError::TooLong {
+            limit: MAX_SENTENCE_BYTES,
+            ..
+        })
+    ));
 }

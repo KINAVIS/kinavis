@@ -9,6 +9,7 @@ use core::fmt::{self, Write};
 use kinavis_kernel::{Latitude, Longitude, Position};
 
 use crate::error::NmeaError;
+use crate::frame::MAX_SENTENCE_BYTES;
 
 /// A `fmt::Write` that XORs everything passing through it.
 pub(crate) struct Checksum<'a, 'b> {
@@ -126,13 +127,35 @@ impl Write for SliceWriter<'_> {
     }
 }
 
-/// Writes a sentence (`$` to `CR LF`) into `buf` and returns its length.
+/// `fmt::Write` that only counts bytes, used by [`encode`].
+struct Counter(usize);
+
+impl Write for Counter {
+    fn write_str(&mut self, text: &str) -> fmt::Result {
+        self.0 = self.0.saturating_add(text.len());
+        Ok(())
+    }
+}
+
+/// Writes a sentence (`$` to `CR LF`) into `out` and returns its length.
+///
+/// A sentence longer than [`MAX_SENTENCE_BYTES`] is refused, never written.
+/// Of the sentences [`parse`](crate::parse) accepts, only a GGA with several
+/// fields near their plausibility bounds can exceed it.
 ///
 /// # Errors
 ///
-/// [`NmeaError::BufferTooSmall`] if it does not fit;
-/// [`MAX_SENTENCE_BYTES`](crate::MAX_SENTENCE_BYTES) always suffices.
+/// [`NmeaError::TooLong`] if the sentence exceeds [`MAX_SENTENCE_BYTES`];
+/// [`NmeaError::BufferTooSmall`] if it does not fit in `out`.
 pub fn encode(sentence: &impl fmt::Display, out: &mut [u8]) -> Result<usize, NmeaError> {
+    let mut counter = Counter(0);
+    write!(counter, "{sentence}\r\n").map_err(|_| NmeaError::BufferTooSmall)?;
+    if counter.0 > MAX_SENTENCE_BYTES {
+        return Err(NmeaError::TooLong {
+            length: counter.0,
+            limit: MAX_SENTENCE_BYTES,
+        });
+    }
     let mut writer = SliceWriter { out, len: 0 };
     write!(writer, "{sentence}\r\n").map_err(|_| NmeaError::BufferTooSmall)?;
     Ok(writer.len)
