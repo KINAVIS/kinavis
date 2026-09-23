@@ -337,3 +337,17 @@ fn vdm_fields_that_cannot_be_are_refused_by_position() {
     let sum = body.bytes().fold(0_u8, |sum, byte| sum ^ byte);
     assert!(parse(format!("!{body}*{sum:02X}").as_bytes()).is_ok());
 }
+
+#[test]
+fn a_dop_below_the_written_precision_still_parses_after_writing() {
+    // Fuzz-found: HDOP `.03` was written as `0.0`, which is not a valid DOP.
+    let line = b"$GPGGA,092750.000,5321.6802,N,00630.3372,W,1,81,.03,61.7,M,5.52,M*76\r\n";
+    let first = parse(line).unwrap();
+    let written = first.to_string();
+    let again = parse(written.as_bytes()).unwrap();
+    assert_eq!(again.to_string(), written);
+    let Sentence::Gga(gga) = again else {
+        panic!("not GGA")
+    };
+    assert_eq!(gga.hdop.unwrap().value(), 0.1);
+}

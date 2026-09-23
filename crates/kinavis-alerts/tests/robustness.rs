@@ -229,7 +229,7 @@ fn any_sequence_of_events_keeps_the_board_coherent() {
     assert!(raised > 0);
     assert!(alerts
         .highest()
-        .map_or(true, |alert| alert.priority() >= AlertPriority::Caution));
+        .is_none_or(|alert| alert.priority() >= AlertPriority::Caution));
 }
 
 #[cfg(feature = "serde")]

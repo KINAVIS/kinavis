@@ -170,7 +170,7 @@ impl fmt::Display for Gga {
             write!(out, ",{},", quality_from_fix_type(self.fix_type))?;
             encode::optional(out, self.satellites.map(TwoDigits))?;
             out.write_str(",")?;
-            encode::optional(out, self.hdop.map(|d| OneDecimal(d.value())))?;
+            encode::optional(out, self.hdop.map(|d| DopField(d.value())))?;
             out.write_str(",")?;
             encode::optional(out, self.altitude.map(|a| OneDecimal(a.metres())))?;
             out.write_str(",M,")?;
@@ -199,6 +199,21 @@ struct FourDigits(u16);
 impl fmt::Display for FourDigits {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{:04}", self.0)
+    }
+}
+
+/// DOP with one decimal. A DOP is strictly positive, so values that would
+/// round to `0.0` are written as `0.1`, the smallest positive value at this
+/// precision; the written sentence always parses.
+struct DopField(f64);
+
+impl fmt::Display for DopField {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if self.0 < 0.05 {
+            f.write_str("0.1")
+        } else {
+            write!(f, "{:.1}", self.0)
+        }
     }
 }
 

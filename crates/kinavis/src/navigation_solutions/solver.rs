@@ -85,7 +85,7 @@ fn bracket_and_bisect(residual: &impl Fn(f64) -> Result<f64>) -> Result<Option<f
             let mut left_value = low_value;
 
             for _ in 0..MAX_BISECTIONS_INVERSE_DEVIATION {
-                let middle = (left + right) / 2.0;
+                let middle = f64::midpoint(left, right);
                 let middle_value = residual(wrap360(middle))?;
                 if math::abs(middle_value) < TOLERANCE_INVERSE_DEVIATION_DEG {
                     return Ok(Some(wrap360(middle)));
@@ -97,7 +97,7 @@ fn bracket_and_bisect(residual: &impl Fn(f64) -> Result<f64>) -> Result<Option<f
                     right = middle;
                 }
             }
-            return Ok(Some(wrap360((left + right) / 2.0)));
+            return Ok(Some(wrap360(f64::midpoint(left, right))));
         }
 
         low = high;

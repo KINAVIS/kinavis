@@ -5,7 +5,7 @@
 [![CI](https://github.com/KINAVIS/kinavis/actions/workflows/ci.yml/badge.svg)](https://github.com/KINAVIS/kinavis/actions/workflows/ci.yml)
 [![crates.io](https://img.shields.io/crates/v/kinavis.svg)](https://crates.io/crates/kinavis)
 [![docs.rs](https://docs.rs/kinavis/badge.svg)](https://docs.rs/kinavis)
-![MSRV 1.81](https://img.shields.io/badge/MSRV-1.81-blue.svg)
+![MSRV 1.85](https://img.shields.io/badge/MSRV-1.85-blue.svg)
 ![no_std](https://img.shields.io/badge/no__std-no%20allocator-blue.svg)
 [![License: MIT OR Apache-2.0](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](#license)
 
@@ -140,7 +140,7 @@ weighs in memory — with examples that are compiled and run as tests.
 `kinavis` and `kinavis-kernel` are at 1.x: within the major version nothing
 documented is removed or changed in meaning, and every public enum is
 `#[non_exhaustive]`, so match with a wildcard arm. The other crates are 0.x
-and version on their own. The minimum supported Rust version is 1.81.
+and version on their own. The minimum supported Rust version is 1.85; raising it is a minor-version change.
 
 ## Documentation
 

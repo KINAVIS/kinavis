@@ -459,10 +459,10 @@ pub fn course_for_cpa(
     for candidate in candidates.iter().flatten() {
         let alteration = wrap180(candidate - own.course.degrees());
         if alteration > 0.0 {
-            if starboard.map_or(true, |(best, _)| alteration < best) {
+            if starboard.is_none_or(|(best, _)| alteration < best) {
                 starboard = Some((alteration, *candidate));
             }
-        } else if alteration < 0.0 && port.map_or(true, |(best, _)| alteration > best) {
+        } else if alteration < 0.0 && port.is_none_or(|(best, _)| alteration > best) {
             port = Some((alteration, *candidate));
         }
     }

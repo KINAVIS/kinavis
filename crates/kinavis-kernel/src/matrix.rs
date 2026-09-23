@@ -133,7 +133,7 @@ impl<const N: usize> Matrix<N, N> {
     /// products.
     #[must_use]
     pub fn symmetrised(&self) -> Self {
-        Self::from_fn(|row, column| 0.5 * (self.at(row, column) + self.at(column, row)))
+        Self::from_fn(|row, column| f64::midpoint(self.at(row, column), self.at(column, row)))
     }
 
     /// Cholesky factor `L` with `self = L Lᵀ`; `None` unless symmetric positive

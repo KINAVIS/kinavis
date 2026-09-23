@@ -450,3 +450,13 @@ fn settings_round_trip_and_are_checked_on_the_way_in() {
     assert!(serde_json::from_str::<LegCursor>("126").is_ok());
     assert!(serde_json::from_str::<LegCursor>("127").is_err());
 }
+
+#[test]
+fn a_deviation_table_round_trips_bit_for_bit() {
+    // Fuzz-found: needs exact float parsing (`serde_json/float_roundtrip`).
+    let json = "[[0,4],[280,-1.4444444888888886],[22,1.5],[270,0.7]]";
+    let table: DeviationTable = serde_json::from_str(json).unwrap();
+    let written = serde_json::to_string(&table).unwrap();
+    let again: DeviationTable = serde_json::from_str(&written).unwrap();
+    assert_eq!(again, table);
+}

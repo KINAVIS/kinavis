@@ -416,9 +416,7 @@ fn search(
             });
         if let Some((alteration, passing, limiting)) = found {
             // Smaller alteration wins; ties go to starboard (checked first).
-            if best.map_or(true, |(current, _, _)| {
-                math::abs(alteration) < math::abs(current)
-            }) {
+            if best.is_none_or(|(current, _, _)| math::abs(alteration) < math::abs(current)) {
                 best = Some((alteration, passing, limiting));
             }
         }
@@ -475,7 +473,7 @@ fn clears(
             // vouched for.
             _ => return None,
         };
-        if least.map_or(true, |(current, _)| passing < current) {
+        if least.is_none_or(|(current, _)| passing < current) {
             least = Some((passing, encounter.target));
         }
     }

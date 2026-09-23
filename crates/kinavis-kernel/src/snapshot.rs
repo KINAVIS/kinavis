@@ -59,7 +59,7 @@ impl ErrorEllipse {
             return None;
         }
         // Eigenvalues of the symmetric 2 × 2 matrix.
-        let half_trace = 0.5 * (north + east);
+        let half_trace = f64::midpoint(north, east);
         let half_difference = 0.5 * (north - east);
         let radius = math::hypot(half_difference, north_east);
         let major = (half_trace + radius).max(0.0);

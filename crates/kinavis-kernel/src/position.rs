@@ -490,7 +490,7 @@ impl Position {
     /// Plane-sailing approximation, for short distances.
     #[must_use]
     pub fn departure(self, other: Self) -> Distance {
-        let mean_latitude = (self.latitude.radians() + other.latitude.radians()) / 2.0;
+        let mean_latitude = f64::midpoint(self.latitude.radians(), other.latitude.radians());
         Distance::from_nautical_miles_unchecked(
             self.longitude_difference(other).minutes() * math::cos(mean_latitude),
         )

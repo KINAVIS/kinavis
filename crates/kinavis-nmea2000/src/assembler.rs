@@ -237,9 +237,8 @@ impl<const N: usize> Assembler<N> {
     pub fn expire(&mut self, now: Instant<Utc>) {
         for slot in &mut self.slots {
             let stale = slot.is_some_and(|assembly| {
-                // `Option::is_none_or` requires a newer Rust than the MSRV.
                 now.checked_duration_since(assembly.started)
-                    .map_or(true, |age| age > self.timeout)
+                    .is_none_or(|age| age > self.timeout)
             });
             if stale {
                 *slot = None;
