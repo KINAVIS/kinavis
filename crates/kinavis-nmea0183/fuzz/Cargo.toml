@@ -1,0 +1,22 @@
+[package]
+name = "kinavis-nmea0183-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2021"
+
+# Separate workspace, built only by cargo-fuzz.
+[workspace]
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+kinavis-nmea0183 = { path = ".." }
+
+[[bin]]
+name = "parse"
+path = "fuzz_targets/parse.rs"
+test = false
+doc = false
+bench = false

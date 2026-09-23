@@ -1,0 +1,70 @@
+# Build output. The xtask shares the workspace target; each fuzz crate is its
+# own workspace and ignores its own target in its own .gitignore.
+/target
+
+# Cargo.lock is intentionally NOT ignored. Committing it for a library does not
+# affect how downstream crates resolve their dependencies, and it makes CI runs
+# reproducible. The fuzz crates' lock files are ignored beside them.
+
+# Registry tokens never belong in the tree, even if cargo is pointed here.
+.cargo/credentials
+.cargo/credentials.toml
+
+# Property-test regressions are sources: proptest writes a failing seed there so
+# the case is replayed on every run. Keep them.
+
+# Coverage, profiling and mutation-testing output
+*.profraw
+*.profdata
+/lcov.info
+/coverage/
+/tarpaulin-report.*
+/perf.data*
+/flamegraph.svg
+/mutants.out*/
+
+# Python helpers in ci/
+__pycache__/
+*.py[cod]
+
+# Tool leftovers
+*.rs.bk
+*.orig
+*.rej
+*.bundle
+
+/docs/
+
+# Local environment and secrets
+.env
+.env.*
+.envrc
+.direnv/
+
+# AI assistants: local settings, memory and session files
+.claude/
+CLAUDE.md
+CLAUDE.local.md
+.mcp.json
+
+# Editors
+.idea/
+*.iml
+.vscode/
+.zed/
+.fleet/
+.helix/
+*.swp
+*.swo
+.*.sw?
+*~
+\#*\#
+.\#*
+
+# Operating system clutter
+.DS_Store
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
+Desktop.ini

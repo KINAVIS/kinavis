@@ -1,0 +1,30 @@
+[package]
+name = "kinavis-nmea2000-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2021"
+
+# Separate workspace, built only by cargo-fuzz.
+[workspace]
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+kinavis-nmea2000 = { path = "..", default-features = false, features = ["std"] }
+kinavis-kernel = { path = "../../kinavis-kernel", default-features = false, features = ["std"] }
+
+[[bin]]
+name = "decode"
+path = "fuzz_targets/decode.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "frames"
+path = "fuzz_targets/frames.rs"
+test = false
+doc = false
+bench = false

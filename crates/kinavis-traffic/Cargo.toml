@@ -1,0 +1,36 @@
+[package]
+name = "kinavis-traffic"
+description = "Target tracking for the KINAVIS navigation crates: radar and AIS targets as tracks with a course, a speed and an age, without an allocator."
+documentation = "https://docs.rs/kinavis-traffic"
+readme = "README.md"
+keywords = ["radar", "ais", "arpa", "navigation", "no-std"]
+categories = ["science", "no-std"]
+# Satellite crate, versioned independently of the kernel and `kinavis`.
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+homepage.workspace = true
+license.workspace = true
+
+[features]
+default = ["std"]
+# Standard library floating-point maths.
+std = ["kinavis-kernel/std", "kinavis/std"]
+# Pure-Rust `libm`, for `no_std` targets.
+libm = ["kinavis-kernel/libm", "kinavis/libm"]
+# Serialisation of the value types.
+serde = ["dep:serde", "kinavis-kernel/serde", "kinavis/serde"]
+
+[dependencies]
+# Kernel for types and events; `kinavis` for sailings and relative motion.
+kinavis-kernel = { workspace = true }
+kinavis = { workspace = true }
+serde = { workspace = true, optional = true }
+
+[dev-dependencies]
+serde_json = { workspace = true }
+
+[lints]
+workspace = true

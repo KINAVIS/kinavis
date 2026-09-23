@@ -1,0 +1,37 @@
+[package]
+name = "kinavis-ins"
+description = "A strapdown inertial navigation system for the KINAVIS navigation types: NED mechanisation of an IMU and a fifteen-state error-state Kalman filter aided by GNSS and heading, without an allocator."
+documentation = "https://docs.rs/kinavis-ins"
+readme = "README.md"
+keywords = ["ins", "imu", "kalman", "navigation", "no-std"]
+categories = ["science", "no-std", "algorithms"]
+# Satellite crate, versioned independently of the kernel.
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+homepage.workspace = true
+license.workspace = true
+
+[features]
+default = ["std"]
+# Standard library floating-point maths.
+std = ["kinavis-kernel/std"]
+# Pure-Rust `libm`, for `no_std` targets.
+libm = ["kinavis-kernel/libm"]
+# Serialisation of the value types.
+serde = ["dep:serde", "kinavis-kernel/serde"]
+
+[dependencies]
+# Kernel only (value types, matrices, estimator ports); `kinavis` consumes
+# this crate's process model, not the reverse.
+kinavis-kernel = { workspace = true }
+serde = { workspace = true, optional = true }
+
+[dev-dependencies]
+proptest = { workspace = true }
+serde_json = { workspace = true }
+
+[lints]
+workspace = true

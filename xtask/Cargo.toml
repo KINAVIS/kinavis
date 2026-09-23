@@ -1,0 +1,16 @@
+[package]
+name = "xtask"
+description = "Repository chores: the checks that are about the workspace itself."
+publish = false
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+# Parses `cargo metadata`; already a dev-dependency of the library crates.
+serde_json = { workspace = true }
+
+[lints]
+workspace = true

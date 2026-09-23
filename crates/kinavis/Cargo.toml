@@ -1,0 +1,41 @@
+[package]
+name = "kinavis"
+description = "A Rust library for solving common maritime navigation tasks."
+documentation = "https://docs.rs/kinavis"
+readme = "README.md"
+keywords = ["bearing", "course", "compass", "deviation", "navigation"]
+categories = ["science", "no-std", "algorithms"]
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+homepage.workspace = true
+license.workspace = true
+
+[features]
+default = ["std"]
+# Standard library floating-point maths.
+std = ["alloc", "kinavis-kernel/std"]
+# `Vec`-returning companions of the `*_into` calls. Not required by the crate;
+# without it no allocator is needed.
+alloc = ["kinavis-kernel/alloc"]
+# Pure-Rust `libm`, for `no_std` targets.
+libm = ["kinavis-kernel/libm"]
+# Serialisation; deserialisation applies construction-time validation.
+# Implies `alloc` (routes serialise as lists).
+serde = ["dep:serde", "alloc", "kinavis-kernel/serde"]
+
+[dependencies]
+kinavis-kernel = { workspace = true }
+serde = { workspace = true, optional = true }
+
+[dev-dependencies]
+# Dev-only: the GNSS end-to-end test parses a recorded NMEA log. The
+# algorithms never depend on an adapter.
+kinavis-nmea0183 = { workspace = true }
+serde_json = { workspace = true }
+proptest = { workspace = true }
+
+[lints]
+workspace = true

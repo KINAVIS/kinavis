@@ -1,0 +1,42 @@
+[package]
+name = "kinavis-alerts"
+description = "Bridge alert management for the KINAVIS navigation crates: navigation events classified by a policy into alarms, warnings and cautions, with acknowledgement, aggregation and rectification, without an allocator."
+documentation = "https://docs.rs/kinavis-alerts"
+readme = "README.md"
+keywords = ["alerts", "alarm", "bridge", "navigation", "no-std"]
+categories = ["science", "no-std"]
+# Satellite crate: alert policy, versioned independently of the domain.
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+homepage.workspace = true
+license.workspace = true
+
+[features]
+default = ["std"]
+# Standard library floating-point maths.
+std = ["kinavis-kernel/std", "kinavis/std", "kinavis-traffic/std"]
+# Pure-Rust `libm`, for `no_std` targets.
+libm = ["kinavis-kernel/libm", "kinavis/libm", "kinavis-traffic/libm"]
+# Serialisation of the value types.
+serde = [
+    "dep:serde",
+    "kinavis-kernel/serde",
+    "kinavis/serde",
+    "kinavis-traffic/serde",
+]
+
+[dependencies]
+# Kernel and the crates whose events the board ingests.
+kinavis-kernel = { workspace = true }
+kinavis = { workspace = true }
+kinavis-traffic = { version = "0.1.0", path = "../kinavis-traffic", default-features = false }
+serde = { workspace = true, optional = true }
+
+[dev-dependencies]
+serde_json = { workspace = true }
+
+[lints]
+workspace = true

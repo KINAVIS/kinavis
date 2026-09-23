@@ -1,0 +1,28 @@
+# Keeps SHA-pinned actions and the lockfile current: one weekly pull request
+# per ecosystem, validated by CI.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    groups:
+      # All actions in one pull request.
+      actions:
+        patterns: ["*"]
+    commit-message:
+      prefix: "ci"
+
+  - package-ecosystem: cargo
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    # Lockfile only: minimum versions in manifests are changed deliberately.
+    versioning-strategy: lockfile-only
+    groups:
+      cargo:
+        patterns: ["*"]
+    commit-message:
+      prefix: "build"

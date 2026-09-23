@@ -1,0 +1,26 @@
+name: Advisories
+
+# RustSec advisories for the dependency tree. Separate from `ci.yml` because
+# the result changes without code changes. Runs on every change and weekly;
+# not a required check, so a new advisory does not block unrelated merges.
+# Fixes land as their own pull request, usually from Dependabot.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "17 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  advisories:
+    name: Security advisories
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25 # v2.1.1
+        with:
+          command: check advisories

@@ -1,0 +1,37 @@
+[package]
+name = "kinavis-kernel"
+description = "The value types, invariants and error type of the KINAVIS navigation crates."
+documentation = "https://docs.rs/kinavis-kernel"
+readme = "README.md"
+keywords = ["navigation", "latitude", "longitude", "bearing", "no-std"]
+categories = ["science", "no-std", "data-structures"]
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+homepage.workspace = true
+license.workspace = true
+
+[features]
+default = ["std"]
+# Standard library floating-point maths.
+std = ["alloc"]
+# Unused by the kernel; lets dependent crates name one flag for the family,
+# and enables formatting in tests.
+alloc = []
+# Pure-Rust `libm`, for `no_std` targets.
+libm = ["dep:libm"]
+# Serialisation; deserialisation applies construction-time validation.
+serde = ["dep:serde"]
+
+[dependencies]
+libm = { workspace = true, optional = true }
+serde = { workspace = true, optional = true }
+
+[dev-dependencies]
+serde_json = { workspace = true }
+proptest = { workspace = true }
+
+[lints]
+workspace = true

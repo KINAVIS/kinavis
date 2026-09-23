@@ -1,0 +1,31 @@
+[package]
+name = "kinavis-wmm"
+description = "The World Magnetic Model as a magnetic model port for the KINAVIS navigation crates, without an allocator."
+documentation = "https://docs.rs/kinavis-wmm"
+readme = "README.md"
+keywords = ["wmm", "geomagnetism", "declination", "navigation", "no-std"]
+categories = ["science", "no-std"]
+# Satellite crate, versioned independently of the kernel.
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+homepage.workspace = true
+license.workspace = true
+
+[features]
+default = ["std", "wmm2025"]
+# Standard library floating-point maths.
+std = ["kinavis-kernel/std"]
+# Pure-Rust `libm`, for `no_std` targets.
+libm = ["kinavis-kernel/libm"]
+# Embed the WMM2025 coefficients, valid 2025.0 to 2030.0.
+wmm2025 = []
+
+[dependencies]
+# Kernel only.
+kinavis-kernel = { workspace = true }
+
+[lints]
+workspace = true

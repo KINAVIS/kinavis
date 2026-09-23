@@ -1,0 +1,64 @@
+# The dependency rule of the workspace, as data.
+#
+# Every crate here lists every crate it may depend on — its workspace
+# siblings and the outside world alike. `cargo xtask arch` reads the actual
+# graph from `cargo metadata` and fails on any edge that is not listed, so a
+# new dependency is a change to this file first and to a `Cargo.toml` second,
+# and it is seen in review as the decision it is.
+#
+# Dependencies point inward only: an adapter depends on the kernel, never on
+# the algorithms; the kernel depends on no crate of this workspace at all.
+# Dev-dependencies are not checked — they do not ship.
+#
+# The task reads exactly this shape and nothing more: one table per crate,
+# named after it, holding one key `allow` with an array of crate names.
+
+[kinavis-kernel]
+allow = ["libm", "serde"]
+
+[kinavis]
+# `kinavis-nmea0183` is a dev-dependency of this crate, for the end-to-end
+# test that feeds a recorded log through the parser; dev-dependencies are
+# not edges of the shipped graph and are not listed.
+allow = ["kinavis-kernel", "serde"]
+
+[xtask]
+allow = ["serde_json"]
+
+[kinavis-nmea0183]
+allow = ["kinavis-kernel"]
+
+[kinavis-wmm]
+allow = ["kinavis-kernel"]
+
+[kinavis-traffic]
+# The one satellite that sits above the algorithms, not beside them: a
+# track is measured with the sailings and the relative motion.
+allow = ["kinavis-kernel", "kinavis", "serde"]
+
+[kinavis-colregs]
+# The rules, applied to the geometry the algorithms describe; never the
+# other way round.
+allow = ["kinavis-kernel", "kinavis", "serde"]
+
+[kinavis-alerts]
+# The one place every context's events meet: the board takes the kernel's,
+# guidance's and the traffic picture's events and names the union, so it
+# sits above all three. Dependencies still point inward only.
+allow = ["kinavis-kernel", "kinavis", "kinavis-traffic", "serde"]
+
+[kinavis-ais]
+# An adapter over an adapter: the message arrives in a sentence, so the
+# NMEA crate is the one sibling this one names besides the kernel.
+allow = ["kinavis-kernel", "kinavis-nmea0183", "serde"]
+
+[kinavis-nmea2000]
+# A frame is bytes and the bus is the caller's: the kernel is the one
+# sibling this crate names.
+allow = ["kinavis-kernel", "serde"]
+
+[kinavis-ins]
+# An inertial system is a process model and an estimator of its own over
+# the kernel's types and matrices; the six-state estimator consumes it,
+# never the other way round.
+allow = ["kinavis-kernel", "serde"]

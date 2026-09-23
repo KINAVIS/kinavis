@@ -1,0 +1,37 @@
+[package]
+name = "kinavis-ais"
+description = "AIS messages out of the KINAVIS NMEA 0183 encapsulation and into the KINAVIS navigation types: unarmouring, reassembly of fragments and the position reports, without an allocator."
+documentation = "https://docs.rs/kinavis-ais"
+readme = "README.md"
+keywords = ["ais", "nmea", "aivdm", "navigation", "no-std"]
+categories = ["parser-implementations", "science", "no-std"]
+# Satellite crate, versioned independently of the kernel.
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+homepage.workspace = true
+license.workspace = true
+
+[features]
+default = ["std"]
+# Standard library floating-point maths.
+std = ["kinavis-kernel/std", "kinavis-nmea0183/std"]
+# Pure-Rust `libm`, for `no_std` targets.
+libm = ["kinavis-kernel/libm", "kinavis-nmea0183/libm"]
+# Serialisation of the value types.
+serde = ["dep:serde", "kinavis-kernel/serde"]
+
+[dependencies]
+# Kernel for value types; NMEA 0183 for the encapsulation sentence.
+kinavis-kernel = { workspace = true }
+kinavis-nmea0183 = { workspace = true }
+serde = { workspace = true, optional = true }
+
+[dev-dependencies]
+proptest = { workspace = true }
+serde_json = { workspace = true }
+
+[lints]
+workspace = true

@@ -1,0 +1,32 @@
+[package]
+name = "kinavis-nmea0183"
+description = "NMEA 0183 sentences in and out of the KINAVIS navigation types, without an allocator."
+documentation = "https://docs.rs/kinavis-nmea0183"
+readme = "README.md"
+keywords = ["nmea", "nmea0183", "gnss", "gps", "no-std"]
+categories = ["parser-implementations", "science", "no-std"]
+# Satellite crate, versioned independently of the kernel.
+version = "0.2.0"
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+homepage.workspace = true
+license.workspace = true
+
+[features]
+default = ["std"]
+# Standard library floating-point maths.
+std = ["kinavis-kernel/std"]
+# Pure-Rust `libm`, for `no_std` targets.
+libm = ["kinavis-kernel/libm"]
+
+[dependencies]
+# Kernel only.
+kinavis-kernel = { workspace = true }
+
+[dev-dependencies]
+proptest = { workspace = true }
+
+[lints]
+workspace = true

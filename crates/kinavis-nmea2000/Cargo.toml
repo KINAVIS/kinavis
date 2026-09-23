@@ -1,0 +1,36 @@
+[package]
+name = "kinavis-nmea2000"
+description = "NMEA 2000 parameter groups out of CAN frames and into the KINAVIS navigation types: the 29-bit identifier, fast-packet reassembly and the position, course, heading, depth, GNSS and AIS groups, without an allocator."
+documentation = "https://docs.rs/kinavis-nmea2000"
+readme = "README.md"
+keywords = ["nmea2000", "can", "pgn", "navigation", "no-std"]
+categories = ["parser-implementations", "science", "no-std"]
+# Satellite crate, versioned independently of the kernel.
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+homepage.workspace = true
+license.workspace = true
+
+[features]
+default = ["std"]
+# Standard library floating-point maths.
+std = ["kinavis-kernel/std"]
+# Pure-Rust `libm`, for `no_std` targets.
+libm = ["kinavis-kernel/libm"]
+# Serialisation of the value types.
+serde = ["dep:serde", "kinavis-kernel/serde"]
+
+[dependencies]
+# Kernel only; the CAN bus is the caller's.
+kinavis-kernel = { workspace = true }
+serde = { workspace = true, optional = true }
+
+[dev-dependencies]
+proptest = { workspace = true }
+serde_json = { workspace = true }
+
+[lints]
+workspace = true

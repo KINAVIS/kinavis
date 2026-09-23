@@ -1,0 +1,66 @@
+# Workspace: shared lints, version policy and MSRV for every crate.
+[workspace]
+resolver = "2"
+members = ["crates/*", "xtask"]
+# Fuzz crates are separate workspaces built by cargo-fuzz with its own
+# profile and flags.
+exclude = [
+    "crates/kinavis/fuzz",
+    "crates/kinavis-nmea0183/fuzz",
+    "crates/kinavis-ais/fuzz",
+    "crates/kinavis-nmea2000/fuzz",
+]
+
+[workspace.package]
+version = "1.0.0"
+authors = ["xvi.xv.xii.ix.xxii.ix.xiv <xvi.xv.xii.ix.xxii.ix.xiv@gmail.com>"]
+edition = "2021"
+rust-version = "1.81"
+repository = "https://github.com/KINAVIS/kinavis"
+homepage = "https://github.com/KINAVIS/kinavis"
+license = "MIT OR Apache-2.0"
+
+[workspace.dependencies]
+# Workspace crates, so members reference siblings with the workspace version.
+kinavis-kernel = { version = "1.0.0", path = "crates/kinavis-kernel", default-features = false }
+kinavis = { version = "1.0.0", path = "crates/kinavis", default-features = false }
+kinavis-nmea0183 = { version = "0.2.0", path = "crates/kinavis-nmea0183", default-features = false }
+
+libm = { version = "0.2", default-features = false }
+serde = { version = "1", default-features = false, features = [
+    "alloc",
+    "derive",
+] }
+serde_json = "1"
+# Property tests. `default-features = false` drops fork/timeout support (not
+# needed) and keeps the dependency tree small.
+proptest = { version = "1", default-features = false, features = ["std"] }
+
+# Workspace lints, applied by `[lints] workspace = true` in every crate.
+[workspace.lints.rust]
+unsafe_code = "forbid"
+missing_docs = "deny"
+missing_debug_implementations = "warn"
+unreachable_pub = "warn"
+
+[workspace.lints.clippy]
+all = { level = "deny", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
+# No aborts on bad data.
+unwrap_used = "deny"
+expect_used = "deny"
+# Ignoring a computed result is a bug.
+must_use_candidate = "deny"
+panic = "deny"
+todo = "deny"
+unimplemented = "deny"
+indexing_slicing = "deny"
+# Numeric code follows the notation of its formulas.
+similar_names = "allow"
+module_name_repetitions = "allow"
+
+# Release with integer overflow checks, used only by `ci/panic-free.py`: an
+# unchecked `+` on a length or offset shows up as a panic path. Not shipped.
+[profile.strict]
+inherits = "release"
+overflow-checks = true

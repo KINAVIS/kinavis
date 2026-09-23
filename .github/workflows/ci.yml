@@ -1,0 +1,187 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Read-only token: no write, issue or publish permissions.
+permissions:
+  contents: read
+
+# Actions are pinned to full commit SHAs (tag in the comment); Dependabot
+# proposes updates. Tags are mutable, commits are not.
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: -D warnings
+
+jobs:
+  test:
+    name: Test (${{ matrix.rust }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # MSRV from Cargo.toml, and current stable.
+        rust: ["1.81", stable]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # v1
+        with:
+          toolchain: ${{ matrix.rust }}
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - run: cargo test --workspace --all-features
+      # Publishable crates in every shipped feature configuration.
+      - run: cargo test -p kinavis-kernel -p kinavis -p kinavis-nmea0183 -p kinavis-traffic -p kinavis-colregs -p kinavis-alerts -p kinavis-ais -p kinavis-nmea2000 -p kinavis-ins --no-default-features --features libm
+      - run: cargo test -p kinavis-kernel -p kinavis --no-default-features --features "libm alloc"
+      - run: cargo test -p kinavis-kernel -p kinavis --no-default-features --features "libm serde"
+      # Magnetic model on `libm`, and without embedded coefficients (synthesis
+      # only; the doctest needing them is excluded).
+      - run: cargo test -p kinavis-wmm --no-default-features --features "libm wmm2025"
+      - run: cargo test -p kinavis-wmm --no-default-features --features std --lib --tests
+
+  properties:
+    name: Property tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # v1
+        with:
+          toolchain: stable
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      # More cases than the default.
+      - run: cargo test -p kinavis --test properties --all-features
+        env:
+          PROPTEST_CASES: "4096"
+      - run: cargo test -p kinavis-kernel --test time_properties --test geodesy_properties --test local_properties --test matrix_properties --all-features
+        env:
+          PROPTEST_CASES: "4096"
+      - run: cargo test -p kinavis-nmea0183 --test robustness
+        env:
+          PROPTEST_CASES: "4096"
+
+  lint:
+    name: Format and lints
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # v1
+        with:
+          toolchain: stable
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - run: cargo fmt --all --check
+      - run: cargo clippy --workspace --all-targets --all-features
+      - run: cargo clippy -p kinavis-kernel -p kinavis -p kinavis-nmea0183 -p kinavis-wmm -p kinavis-traffic -p kinavis-colregs -p kinavis-alerts -p kinavis-ais -p kinavis-nmea2000 -p kinavis-ins --all-targets --no-default-features --features libm
+      - run: cargo clippy -p kinavis-kernel -p kinavis --all-targets --no-default-features --features "libm alloc"
+      - run: cargo clippy -p kinavis-kernel -p kinavis --all-targets --no-default-features --features "libm serde"
+      - run: cargo doc --workspace --no-deps --all-features
+
+  no-std:
+    name: Build for a bare-metal target
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # v1
+        with:
+          toolchain: stable
+          targets: thumbv7em-none-eabihf
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      # The target has no `std`; without `alloc` there is no `extern crate
+      # alloc`, so the compiler proves the crates are `no_std` and allocator-free.
+      - run: cargo build -p kinavis-kernel -p kinavis -p kinavis-nmea0183 -p kinavis-wmm -p kinavis-traffic -p kinavis-colregs -p kinavis-alerts -p kinavis-ais -p kinavis-nmea2000 -p kinavis-ins --target thumbv7em-none-eabihf --no-default-features --features "libm wmm2025"
+      - run: cargo build -p kinavis-kernel -p kinavis --target thumbv7em-none-eabihf --no-default-features --features "libm alloc"
+      - run: cargo build -p kinavis-kernel -p kinavis --target thumbv7em-none-eabihf --no-default-features --features "libm serde"
+
+  strict-profile:
+    name: No panic path on bare metal
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # v1
+        with:
+          toolchain: stable
+          targets: thumbv7em-none-eabihf
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      # Fails on any `core::panicking` call in the LLVM IR outside formatting
+      # implementations (see the script).
+      - run: python3 ci/panic-free.py
+      # Types with numeric invariants must deserialise through their
+      # constructor (see the script).
+      - run: python3 ci/serde-guard.py
+
+  fuzz-smoke:
+    name: Fuzz the parsers
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - crate: kinavis-nmea0183
+            target: parse
+          - crate: kinavis-ais
+            target: decode
+          - crate: kinavis-ais
+            target: assemble
+          - crate: kinavis-nmea2000
+            target: decode
+          - crate: kinavis-nmea2000
+            target: frames
+          - crate: kinavis
+            target: serde_route
+          - crate: kinavis
+            target: serde_table
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # v1
+        with:
+          toolchain: nightly
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          key: ${{ matrix.crate }}-${{ matrix.target }}
+      # Pinned: build-time tools are build dependencies.
+      - run: cargo install cargo-fuzz --version 0.13.2 --locked
+      # Short run per change, seeded from the committed corpus, on every
+      # entry point for untrusted bytes (parsers, stored forms).
+      - run: cargo fuzz run ${{ matrix.target }} -- -max_total_time=60
+        working-directory: crates/${{ matrix.crate }}
+
+  arch:
+    name: Dependency rule
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # v1
+        with:
+          toolchain: stable
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      # Every crate-graph edge must be listed in ci/allowed-deps.toml; the
+      # kernel must not reference `kinavis`.
+      - run: cargo xtask arch
+
+  semver:
+    name: API compatibility
+    # Requires a published baseline on crates.io. Enabled by the repository
+    # variable `SEMVER_BASELINE=true` (`gh variable set SEMVER_BASELINE --body true`).
+    if: vars.SEMVER_BASELINE == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # Stable crates against their last published release: a breaking change
+      # fails unless the version is bumped. Add `kinavis-kernel` once it has a
+      # published baseline.
+      - uses: obi1kenobi/cargo-semver-checks-action@6b69fcf40e9b5fb17adeb57e4b6ecd020649a239 # v2.9
+        with:
+          package: kinavis
+          feature-group: all-features
+
+  supply-chain:
+    name: Dependency policy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # Bans, licences and sources depend only on the tree, so failures are
+      # caused by the change itself. Advisories are in `advisories.yml`.
+      - uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25 # v2.1.1
+        with:
+          command: check bans licenses sources

@@ -1,0 +1,36 @@
+[package]
+name = "kinavis-colregs"
+description = "The steering and sailing rules of the COLREGs as data for the KINAVIS navigation crates: the encounter, who keeps out of the way, and what each may do, without an allocator."
+documentation = "https://docs.rs/kinavis-colregs"
+readme = "README.md"
+keywords = ["colregs", "collision-avoidance", "navigation", "marine", "no-std"]
+categories = ["science", "no-std"]
+# Satellite crate: rules versioned independently of the kinematics.
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+homepage.workspace = true
+license.workspace = true
+
+[features]
+default = ["std"]
+# Standard library floating-point maths.
+std = ["kinavis-kernel/std", "kinavis/std"]
+# Pure-Rust `libm`, for `no_std` targets.
+libm = ["kinavis-kernel/libm", "kinavis/libm"]
+# Serialisation of the value types.
+serde = ["dep:serde", "kinavis-kernel/serde", "kinavis/serde"]
+
+[dependencies]
+# Kernel for angles; `kinavis` for vessel and contact types.
+kinavis-kernel = { workspace = true }
+kinavis = { workspace = true }
+serde = { workspace = true, optional = true }
+
+[dev-dependencies]
+serde_json = { workspace = true }
+
+[lints]
+workspace = true

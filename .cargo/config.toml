@@ -1,0 +1,3 @@
+# `cargo xtask <task>` alias for `cargo run -p xtask -- <task>`.
+[alias]
+xtask = "run --package xtask --"
