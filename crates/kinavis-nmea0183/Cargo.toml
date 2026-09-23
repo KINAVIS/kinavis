@@ -4,7 +4,7 @@ description = "NMEA 0183 sentences in and out of the KINAVIS navigation types, w
 documentation = "https://docs.rs/kinavis-nmea0183"
 readme = "README.md"
 keywords = ["nmea", "nmea0183", "gnss", "gps", "no-std"]
-categories = ["parser-implementations", "science", "no-std"]
+categories = ["parser-implementations", "science", "no-std::no-alloc"]
 # Satellite crate, versioned independently of the kernel.
 version = "0.2.0"
 authors.workspace = true

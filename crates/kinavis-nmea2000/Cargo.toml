@@ -3,8 +3,8 @@ name = "kinavis-nmea2000"
 description = "NMEA 2000 parameter groups out of CAN frames and into the KINAVIS navigation types: the 29-bit identifier, fast-packet reassembly and the position, course, heading, depth, GNSS and AIS groups, without an allocator."
 documentation = "https://docs.rs/kinavis-nmea2000"
 readme = "README.md"
-keywords = ["nmea2000", "can", "pgn", "navigation", "no-std"]
-categories = ["parser-implementations", "science", "no-std"]
+keywords = ["nmea2000", "n2k", "can", "marine", "no-std"]
+categories = ["parser-implementations", "science", "no-std::no-alloc"]
 # Satellite crate, versioned independently of the kernel.
 version = "0.1.0"
 authors.workspace = true

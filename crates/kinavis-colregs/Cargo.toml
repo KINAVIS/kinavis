@@ -4,7 +4,7 @@ description = "The steering and sailing rules of the COLREGs as data for the KIN
 documentation = "https://docs.rs/kinavis-colregs"
 readme = "README.md"
 keywords = ["colregs", "collision-avoidance", "navigation", "marine", "no-std"]
-categories = ["science", "no-std"]
+categories = ["science", "no-std::no-alloc"]
 # Satellite crate: rules versioned independently of the kinematics.
 version = "0.1.0"
 authors.workspace = true

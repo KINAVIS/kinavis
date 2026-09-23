@@ -3,8 +3,8 @@ name = "kinavis-ins"
 description = "A strapdown inertial navigation system for the KINAVIS navigation types: NED mechanisation of an IMU and a fifteen-state error-state Kalman filter aided by GNSS and heading, without an allocator."
 documentation = "https://docs.rs/kinavis-ins"
 readme = "README.md"
-keywords = ["ins", "imu", "kalman", "navigation", "no-std"]
-categories = ["science", "no-std", "algorithms"]
+keywords = ["inertial-navigation", "imu", "kalman", "sensor-fusion", "no-std"]
+categories = ["science", "no-std::no-alloc", "algorithms"]
 # Satellite crate, versioned independently of the kernel.
 version = "0.1.0"
 authors.workspace = true

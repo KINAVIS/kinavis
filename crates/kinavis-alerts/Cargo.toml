@@ -3,8 +3,8 @@ name = "kinavis-alerts"
 description = "Bridge alert management for the KINAVIS navigation crates: navigation events classified by a policy into alarms, warnings and cautions, with acknowledgement, aggregation and rectification, without an allocator."
 documentation = "https://docs.rs/kinavis-alerts"
 readme = "README.md"
-keywords = ["alerts", "alarm", "bridge", "navigation", "no-std"]
-categories = ["science", "no-std"]
+keywords = ["alarm", "alerts", "marine", "navigation", "no-std"]
+categories = ["science", "no-std::no-alloc"]
 # Satellite crate: alert policy, versioned independently of the domain.
 version = "0.1.0"
 authors.workspace = true

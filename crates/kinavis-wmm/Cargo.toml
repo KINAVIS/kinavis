@@ -4,7 +4,7 @@ description = "The World Magnetic Model as a magnetic model port for the KINAVIS
 documentation = "https://docs.rs/kinavis-wmm"
 readme = "README.md"
 keywords = ["wmm", "geomagnetism", "declination", "navigation", "no-std"]
-categories = ["science", "no-std"]
+categories = ["science::geo", "no-std::no-alloc"]
 # Satellite crate, versioned independently of the kernel.
 version = "0.1.0"
 authors.workspace = true
