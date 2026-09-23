@@ -70,7 +70,7 @@ take only the crates you need.
 ```toml
 [dependencies]
 kinavis = "1"
-kinavis-nmea0183 = "0.2"
+kinavis-nmea0183 = "0.1"
 ```
 
 Fixes off the wire, and what to steer to stay on the planned track:

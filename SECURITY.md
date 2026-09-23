@@ -31,8 +31,7 @@ input. Reporters are credited in the advisory unless they prefer not to be.
 | Crate | Supported |
 |---|---|
 | `kinavis`, `kinavis-kernel` | the latest `1.x` |
-| `kinavis-nmea0183` | the latest `0.2.x` |
-| `kinavis-ais`, `kinavis-nmea2000`, `kinavis-ins`, `kinavis-traffic`, `kinavis-colregs`, `kinavis-alerts`, `kinavis-wmm` | the latest `0.x` |
+| `kinavis-nmea0183`, `kinavis-ais`, `kinavis-nmea2000`, `kinavis-ins`, `kinavis-traffic`, `kinavis-colregs`, `kinavis-alerts`, `kinavis-wmm` | the latest `0.x` |
 
 Older releases are not patched; upgrade. The minimum supported Rust version
 is stated in `Cargo.toml` (`rust-version`) and tested in CI.
