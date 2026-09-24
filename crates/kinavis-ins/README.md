@@ -60,6 +60,9 @@ assert!(ins.heading_sigma().degrees() < 0.5);
 # Ok::<(), Box<dyn std::error::Error>>(())
 ```
 
+The navigation algorithms and the list of the other KINAVIS crates are in
+[`kinavis`](https://crates.io/crates/kinavis).
+
 ## Feature flags
 
 - `std` *(default)* — standard library maths in the kernel.

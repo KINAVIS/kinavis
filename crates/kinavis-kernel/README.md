@@ -9,7 +9,8 @@ The kernel holds what has exactly one correct implementation. Algorithms
 crate (sensor adapters, environment models, INS) depends on the kernel alone, so
 adapters change without touching the core.
 
-Most users should depend on `kinavis`, which re-exports these types. Depend on
+Most users should depend on [`kinavis`](https://crates.io/crates/kinavis),
+which re-exports these types and lists the other KINAVIS crates. Depend on
 `kinavis-kernel` directly for an adapter that must not pull in the algorithms.
 
 ## Feature flags
