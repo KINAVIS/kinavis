@@ -41,6 +41,9 @@ assert!(alerts.len() <= MAX_ALERTS);
 # Ok::<(), kinavis_kernel::KernelError>(())
 ```
 
+The navigation algorithms and the list of the other KINAVIS crates are in
+[`kinavis`](https://crates.io/crates/kinavis).
+
 ## Feature flags
 
 - `std` *(default)* — standard library maths in the kernel.

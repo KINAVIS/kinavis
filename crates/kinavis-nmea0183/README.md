@@ -17,6 +17,9 @@ translated into a kernel `GnssFix`. The sentence never reaches the domain.
 - No allocation: parses `&[u8]` in place.
 - No panics: every failure is an `NmeaError`.
 
+The navigation algorithms and the list of the other KINAVIS crates are in
+[`kinavis`](https://crates.io/crates/kinavis).
+
 ## Feature flags
 
 - `std` *(default)* — standard library maths in the kernel.

@@ -43,6 +43,9 @@ assert_eq!(format!("{:.2}", depth.depth_from_reference().unwrap().metres()), "10
 # Ok::<(), Box<dyn std::error::Error>>(())
 ```
 
+The navigation algorithms and the list of the other KINAVIS crates are in
+[`kinavis`](https://crates.io/crates/kinavis).
+
 ## Feature flags
 
 - `std` *(default)* — standard library maths in the kernel.

@@ -51,6 +51,23 @@ the type, and every quantity its unit.
 The [guide](https://docs.rs/kinavis/latest/kinavis/guide/index.html) walks
 through all of it with examples that are compiled and run as tests.
 
+## The KINAVIS crates
+
+`kinavis` holds the algorithms. The other crates bring sensor data in and
+build on top of it, each `no_std` and without an allocator:
+
+| Crate | What it does |
+|---|---|
+| [`kinavis-kernel`](https://crates.io/crates/kinavis-kernel) | the value types, re-exported here; depend on it alone for an adapter that must not pull in the algorithms |
+| [`kinavis-nmea0183`](https://crates.io/crates/kinavis-nmea0183) | NMEA 0183 sentences, parsed and written |
+| [`kinavis-nmea2000`](https://crates.io/crates/kinavis-nmea2000) | NMEA 2000 parameter groups out of CAN frames, fast-packet included |
+| [`kinavis-ais`](https://crates.io/crates/kinavis-ais) | AIS messages: position reports, static and voyage data, aids to navigation |
+| [`kinavis-wmm`](https://crates.io/crates/kinavis-wmm) | the World Magnetic Model 2025: magnetic variation at any position |
+| [`kinavis-ins`](https://crates.io/crates/kinavis-ins) | a strapdown inertial navigation system with a fifteen-state error filter aided by GNSS and heading |
+| [`kinavis-traffic`](https://crates.io/crates/kinavis-traffic) | target tracking from radar and AIS, CPA and TCPA, the avoiding manoeuvre |
+| [`kinavis-colregs`](https://crates.io/crates/kinavis-colregs) | the steering and sailing rules of the COLREGs as data |
+| [`kinavis-alerts`](https://crates.io/crates/kinavis-alerts) | bridge alert management: alarms, warnings and cautions, with acknowledgement |
+
 ## Features
 
 | Feature | Default | What it does |
