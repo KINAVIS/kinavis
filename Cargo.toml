@@ -1,7 +1,7 @@
 # Workspace: shared lints, version policy and MSRV for every crate.
 [workspace]
 resolver = "2"
-members = ["crates/*", "xtask"]
+members = ["crates/*", "examples", "xtask"]
 # Fuzz crates are separate workspaces built by cargo-fuzz with its own
 # profile and flags.
 exclude = [

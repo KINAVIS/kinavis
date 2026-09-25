@@ -1,0 +1,17 @@
+# One sentence from each of several receivers, taken from the gpsd regression
+# logs (test/daemon, gpsd commit 43362cd). Copyright the GPSD project,
+# BSD-2-Clause: see LICENSE-gpsd. `## ` names the receiver of the next line.
+## B&G Zeus² 9 chartplotter (bundg_zeus_9.log)
+$GPRMC,094737,A,5251.0093,N,00518.8170,E,5.6,230.5,200818,1.4,E,A*1F
+## u-blox ZED-F9P, high-precision NMEA, 89 bytes (ublox-f9p-hpnmea.log)
+$GNGGA,014500.00,4404.1306024,N,12118.8446777,W,2,12,0.49,1129.913,M,-21.350,M,,0278*4C
+## Saab R4 AIS transponder, variation direction field missing (saab-r4.log)
+$GPRMC,130711.00,A,5012.790800,N,00806.879600,W,0.5,3.0,010611,,A*6A
+## Caterpillar MS352, variation 999.9 for "unknown" (cat-ms352.log)
+$GPRMC,113938.50,A,3842.86006889,N,11705.43645510,W,0.011,46.405,231122,999.9000,E,D*2E
+## SkyTraq S2525F8-BD-RTK after a cold start (skytraq.log)
+$GPGGA,212406.000,0000.0000000,N,00000.0000000,E,0,00,0.0,0.000,M,0.000,M,,0000*6E
+## i.Trek M3 without a fix (iTrek.log)
+$GPRMC,151605.053,V,,,,,,,260705,,*29
+## GPS-320FW after a GPS week rollover, bytes lost mid-sentence (gp-320fw-2019-04-07-coldboot.log)
+$GPRMC,000429.00,V,0000.0000,N,00000.000VTG,,T,,M,,N,,K,N*2C

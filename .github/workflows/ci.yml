@@ -39,6 +39,8 @@ jobs:
       # only; the doctest needing them is excluded).
       - run: cargo test -p kinavis-wmm --no-default-features --features "libm wmm2025"
       - run: cargo test -p kinavis-wmm --no-default-features --features std --lib --tests
+      # The demonstrations run to the end on their recorded data.
+      - run: for example in receivers gnss_jump traffic course_to_steer; do cargo run -p kinavis-examples --example "$example"; done
 
   properties:
     name: Property tests

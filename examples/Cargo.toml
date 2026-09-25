@@ -1,0 +1,23 @@
+[package]
+name = "kinavis-examples"
+description = "Runnable demonstrations of the KINAVIS crates. Not published."
+publish = false
+version = "0.0.0"
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[lib]
+path = "lib.rs"
+
+# The demonstrations are examples, so every KINAVIS crate they use is a
+# dev-dependency: nothing here is part of the shipped graph.
+[dev-dependencies]
+kinavis = { workspace = true, features = ["std"] }
+kinavis-nmea0183 = { workspace = true, features = ["std"] }
+kinavis-traffic = { version = "0.1.0", path = "../crates/kinavis-traffic" }
+kinavis-ais = { version = "0.1.1", path = "../crates/kinavis-ais" }
+
+[lints]
+workspace = true
