@@ -1,6 +1,6 @@
 [package]
 name = "kinavis-examples"
-description = "Runnable demonstrations of the KINAVIS crates. Not published."
+description = "Runnable demonstrations of the KINAVIS crates, and their check against real receiver logs. Not published."
 publish = false
 version = "0.0.0"
 authors.workspace = true

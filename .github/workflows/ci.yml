@@ -79,6 +79,34 @@ jobs:
       - run: cargo clippy -p kinavis-kernel -p kinavis --all-targets --no-default-features --features "libm serde"
       - run: cargo doc --workspace --no-deps --all-features
 
+  real-data:
+    name: Real receiver logs
+    runs-on: ubuntu-latest
+    env:
+      # gpsd's regression logs at a pinned commit, so the tally changes only
+      # with a change here.
+      GPSD_COMMIT: 43362cd24a43864ceac7b8c70f29be2053dd7b0d
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # v1
+        with:
+          toolchain: stable
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      # Data only, `test/daemon` alone: about two hundred logs of real receivers.
+      - name: Fetch the gpsd logs
+        run: |
+          git init -q "$RUNNER_TEMP/gpsd"
+          cd "$RUNNER_TEMP/gpsd"
+          git remote add origin https://gitlab.com/gpsd/gpsd.git
+          git sparse-checkout set test/daemon
+          git fetch -q --depth 1 origin "$GPSD_COMMIT"
+          git checkout -q FETCH_HEAD
+      # Every sentence read as the navigation system reads it, against the
+      # tally in examples/tests/gpsd_corpus.expected.
+      - run: cargo test -p kinavis-examples --test gpsd_corpus -- --ignored
+        env:
+          GPSD_LOGS: ${{ runner.temp }}/gpsd/test/daemon
+
   no-std:
     name: Build for a bare-metal target
     runs-on: ubuntu-latest

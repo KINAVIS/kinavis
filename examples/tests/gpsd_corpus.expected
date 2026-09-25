@@ -1,0 +1,23 @@
+# Tally of the gpsd regression logs (199 logs).
+    142 AIS: AidToNavigation
+    154 AIS: StaticAndVoyageData
+    147 AIS: StaticDataReport
+    346 AIS: Unsupported
+    179 AIS: fragment held
+    804 AIS: position report, type 1
+    228 AIS: position report, type 18
+      3 AIS: position report, type 19
+     12 AIS: position report, type 2
+    147 AIS: position report, type 3
+    513 GGA: no fix
+   3026 GGA: position
+   2375 GLL
+   2659 RMC: fix
+    180 RMC: no fix, NoPosition
+   2714 VTG
+    388 refused: BadChecksum
+     79 refused: BadField
+      8 refused: BadHeader
+    483 refused: NoChecksum
+    413 refused: TooLong
+  24088 unsupported sentence
