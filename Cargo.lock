@@ -130,6 +130,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "kinavis-signalk"
+version = "0.1.0"
+dependencies = [
+ "kinavis",
+ "kinavis-colregs",
+ "kinavis-kernel",
+ "kinavis-traffic",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "kinavis-traffic"
 version = "0.1.0"
 dependencies = [

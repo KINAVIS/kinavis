@@ -1,0 +1,28 @@
+[package]
+name = "kinavis-signalk"
+description = "Signal K deltas in and out of the KINAVIS navigation crates: the traffic picture from a Signal K server, and CPA, TCPA and the COLREGs ruling for every target back as deltas and notifications."
+documentation = "https://docs.rs/kinavis-signalk"
+readme = "README.md"
+keywords = ["signalk", "ais", "colregs", "cpa", "marine"]
+categories = ["science", "parser-implementations"]
+# Satellite crate, versioned independently of the kernel and `kinavis`.
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+homepage.workspace = true
+license.workspace = true
+
+[dependencies]
+# Signal K is JSON over a server: this adapter needs the standard library, as
+# the crates it feeds do not.
+kinavis-kernel = { workspace = true, features = ["std"] }
+kinavis = { workspace = true, features = ["std"] }
+kinavis-traffic = { version = "0.1.0", path = "../kinavis-traffic" }
+kinavis-colregs = { version = "0.1.0", path = "../kinavis-colregs" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+[lints]
+workspace = true

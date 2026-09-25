@@ -67,3 +67,9 @@ allow = ["kinavis-kernel", "serde"]
 # Unpublished demonstrations. Every KINAVIS crate they use is a
 # dev-dependency, so the shipped graph of this package is empty.
 allow = []
+
+[kinavis-signalk]
+# An adapter that sits above the rules: Signal K deltas become own ship and
+# targets, and the assessment and the ruling go back as deltas. JSON needs
+# `serde_json`; nothing below depends on this crate.
+allow = ["kinavis-kernel", "kinavis", "kinavis-traffic", "kinavis-colregs", "serde", "serde_json"]

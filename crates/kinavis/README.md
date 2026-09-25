@@ -67,6 +67,7 @@ build on top of it, each `no_std` and without an allocator:
 | [`kinavis-traffic`](https://crates.io/crates/kinavis-traffic) | target tracking from radar and AIS, CPA and TCPA, the avoiding manoeuvre |
 | [`kinavis-colregs`](https://crates.io/crates/kinavis-colregs) | the steering and sailing rules of the COLREGs as data |
 | [`kinavis-alerts`](https://crates.io/crates/kinavis-alerts) | bridge alert management: alarms, warnings and cautions, with acknowledgement |
+| [`kinavis-signalk`](https://crates.io/crates/kinavis-signalk) | Signal K deltas in, CPA, TCPA and the COLREGs ruling out, for a Signal K server plugin |
 
 ## Features
 
