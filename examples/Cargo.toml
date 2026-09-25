@@ -16,8 +16,8 @@ path = "lib.rs"
 [dev-dependencies]
 kinavis = { workspace = true, features = ["std"] }
 kinavis-nmea0183 = { workspace = true, features = ["std"] }
-kinavis-traffic = { path = "../crates/kinavis-traffic" }
-kinavis-ais = { path = "../crates/kinavis-ais" }
+kinavis-traffic = { version = "0.1.0", path = "../crates/kinavis-traffic" }
+kinavis-ais = { version = "0.1.1", path = "../crates/kinavis-ais" }
 
 [lints]
 workspace = true
