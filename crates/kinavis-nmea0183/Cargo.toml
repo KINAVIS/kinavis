@@ -6,7 +6,7 @@ readme = "README.md"
 keywords = ["nmea", "nmea0183", "gnss", "gps", "no-std"]
 categories = ["parser-implementations", "science", "no-std::no-alloc"]
 # Satellite crate, versioned independently of the kernel.
-version = "0.1.0"
+version = "0.1.1"
 authors.workspace = true
 edition.workspace = true
 rust-version.workspace = true

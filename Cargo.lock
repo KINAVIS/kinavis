@@ -51,7 +51,7 @@ dependencies = [
 
 [[package]]
 name = "kinavis-ais"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "kinavis-kernel",
  "kinavis-nmea0183",
@@ -93,7 +93,7 @@ dependencies = [
 
 [[package]]
 name = "kinavis-kernel"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "libm",
  "proptest",
@@ -103,7 +103,7 @@ dependencies = [
 
 [[package]]
 name = "kinavis-nmea0183"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "kinavis-kernel",
  "proptest",

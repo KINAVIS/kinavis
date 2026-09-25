@@ -53,12 +53,16 @@
 //! | Speed over ground | 0 to 1000 kn; 0 to 1852 km/h |
 //! | Altitude (GGA) | −10 000 m to 100 000 m |
 //! | Geoid separation (GGA) | −1000 m to 1000 m |
-//! | Dilution of precision | above 0, at most 100 |
+//! | Dilution of precision | 0 to 100; 0 reads as not available |
+//! | Magnetic variation (RMC) | 180° either way; 999 and above read as not available |
 //! | Differential age (GGA) | 0 s to 9999 s |
 //!
+//! [`parse`] accepts sentences up to [`MAX_ACCEPTED_BYTES`], past the
+//! standard's [`MAX_SENTENCE_BYTES`]: receivers write longer ones.
 //! [`encode`] refuses a sentence longer than [`MAX_SENTENCE_BYTES`] with
-//! [`NmeaError::TooLong`]. RMC, GLL, VTG and VDM always fit; a GGA can exceed
-//! the limit only with several fields near their bounds at once.
+//! [`NmeaError::TooLong`]. RMC, GLL and VTG always fit; a VDM fits with at
+//! most 62 payload characters; a GGA can exceed the limit only with several
+//! fields near their bounds at once.
 //!
 //! # Not supported
 //!
@@ -81,7 +85,7 @@ mod sentence;
 
 pub use encode::encode;
 pub use error::{NmeaError, TranslationError};
-pub use frame::MAX_SENTENCE_BYTES;
+pub use frame::{MAX_ACCEPTED_BYTES, MAX_SENTENCE_BYTES};
 pub use sentence::{
     Address, Channel, Date, Gga, Gll, Mode, Payload, Rmc, Sentence, Status, Talker, TimeOfDay, Vdm,
     Vtg, MAX_FRAGMENTS, MAX_PAYLOAD_CHARS,

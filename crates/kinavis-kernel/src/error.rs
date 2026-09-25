@@ -207,6 +207,23 @@ pub fn ensure_range(parameter: &'static str, value: f64, min: f64, max: f64) -> 
     Ok(())
 }
 
+/// Allowed interval in words. `f64::MIN_POSITIVE` as the minimum reads as
+/// "greater than 0", and `f64::MIN` or `f64::MAX` as unbounded, so no bound is
+/// printed as hundreds of digits.
+fn write_interval(f: &mut fmt::Formatter<'_>, min: f64, max: f64) -> fmt::Result {
+    let positive = min > 0.0 && min <= f64::MIN_POSITIVE;
+    let below = min > f64::MIN;
+    let above = max < f64::MAX;
+    match (positive, below, above) {
+        (true, _, true) => write!(f, "greater than 0 and at most {max}"),
+        (true, _, false) => f.write_str("greater than 0"),
+        (false, true, true) => write!(f, "between {min} and {max}"),
+        (false, true, false) => write!(f, "at least {min}"),
+        (false, false, true) => write!(f, "at most {max}"),
+        (false, false, false) => f.write_str("finite"),
+    }
+}
+
 impl fmt::Display for KernelError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -218,10 +235,10 @@ impl fmt::Display for KernelError {
                 value,
                 min,
                 max,
-            } => write!(
-                f,
-                "{parameter} out of range: {value}. Must be between {min} and {max}"
-            ),
+            } => {
+                write!(f, "{parameter} out of range: {value}. Must be ")?;
+                write_interval(f, *min, *max)
+            }
             Self::InsufficientData {
                 found,
                 required,
@@ -370,6 +387,39 @@ mod tests {
             KernelError::Missing {
                 what: "the vessel's position"
             }
+        );
+    }
+
+    #[test]
+    fn an_unbounded_side_is_not_printed_as_a_number() {
+        let message = |min, max| {
+            KernelError::OutOfRange {
+                parameter: "x",
+                value: 0.0,
+                min,
+                max,
+            }
+            .to_string()
+        };
+        assert_eq!(
+            message(0.0, 1.0),
+            "x out of range: 0. Must be between 0 and 1"
+        );
+        assert_eq!(
+            message(f64::MIN_POSITIVE, f64::MAX),
+            "x out of range: 0. Must be greater than 0"
+        );
+        assert_eq!(
+            message(f64::MIN_POSITIVE, 1e6),
+            "x out of range: 0. Must be greater than 0 and at most 1000000"
+        );
+        assert_eq!(
+            message(1.0, f64::MAX),
+            "x out of range: 0. Must be at least 1"
+        );
+        assert_eq!(
+            message(f64::MIN, -1.0),
+            "x out of range: 0. Must be at most -1"
         );
     }
 
