@@ -80,6 +80,8 @@ graph BT
     traffic[kinavis-traffic] --> kinavis
     colregs[kinavis-colregs] --> kinavis
     alerts[kinavis-alerts] --> traffic
+    signalk[kinavis-signalk] --> traffic
+    signalk --> colregs
 ```
 
 | Crate | What it does |
@@ -94,6 +96,7 @@ graph BT
 | [`kinavis-traffic`](https://docs.rs/kinavis-traffic) | target tracking from radar and AIS, CPA and TCPA, the avoiding manoeuvre |
 | [`kinavis-colregs`](https://docs.rs/kinavis-colregs) | the steering and sailing rules of the COLREGs as data |
 | [`kinavis-alerts`](https://docs.rs/kinavis-alerts) | bridge alert management: alarms, warnings and cautions, with acknowledgement |
+| [`kinavis-signalk`](https://docs.rs/kinavis-signalk) | Signal K deltas in, CPA, TCPA and the COLREGs ruling out; the core of the [Signal K plugin](https://github.com/KINAVIS/signalk-kinavis) (`std`) |
 
 An adapter depends on the kernel alone and never pulls in the algorithms;
 take only the crates you need.
