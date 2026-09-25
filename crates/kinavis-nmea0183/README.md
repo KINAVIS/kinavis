@@ -12,6 +12,8 @@ translated into a kernel `GnssFix`. The sentence never reaches the domain.
   `Sentence::Unsupported` with a verified checksum.
 - Plausibility bounds on numeric fields (speed, altitude, DOP, differential
   age): a value outside is rejected as a corrupt field.
+- Sentences up to 102 bytes are read, past the standard's 82: high-precision
+  GNSS and AIS receivers write longer ones.
 - Encoding as well as parsing, for generation and round-trip tests; a sentence
   longer than the standard's 82 bytes is refused, never written.
 - No allocation: parses `&[u8]` in place.

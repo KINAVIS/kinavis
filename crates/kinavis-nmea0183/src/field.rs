@@ -33,6 +33,9 @@ pub(crate) mod bounds {
     pub(crate) const DOP: (f64, f64) = (0.0, 100.0);
     /// Age of the differential correction, seconds.
     pub(crate) const DIFFERENTIAL_AGE_SECONDS: (f64, f64) = (0.0, 9999.0);
+    /// Magnetic variation from which the field reads as not available:
+    /// receivers without a magnetic model write 999.9.
+    pub(crate) const NO_VARIATION_DEGREES: f64 = 999.0;
 }
 
 /// Field with its index, for error reporting.
@@ -259,7 +262,9 @@ impl<'a> Field<'a> {
         &self,
         east_west: Field<'_>,
     ) -> Result<Option<Variation>, NmeaError> {
-        if self.is_empty() && east_west.is_empty() {
+        // No magnitude, whatever the direction field holds: some receivers
+        // write the direction alone, or drop its field and shift the mode in.
+        if self.is_empty() {
             return Ok(None);
         }
         let magnitude = self.decimal("variation")?;
@@ -268,6 +273,9 @@ impl<'a> Field<'a> {
             b'W' => -1.0,
             _ => return Err(east_west.bad("variation direction")),
         };
+        if magnitude >= bounds::NO_VARIATION_DEGREES {
+            return Ok(None);
+        }
         Variation::new(magnitude * sign)
             .map(Some)
             .map_err(|e| self.value(e))
@@ -287,13 +295,17 @@ impl<'a> Field<'a> {
             .map_err(|e| self.value(e))
     }
 
+    /// Zero is read as not available: receivers without a fix write `0.0`.
     pub(crate) fn optional_dop(&self) -> Result<Option<Dop>, NmeaError> {
         if self.is_empty() {
             return Ok(None);
         }
-        Dop::new(self.bounded_decimal("dilution of precision", bounds::DOP)?)
-            .map(Some)
-            .map_err(|e| self.value(e))
+        let value = self.bounded_decimal("dilution of precision", bounds::DOP)?;
+        // Bounded below by zero, so this is exactly zero.
+        if value <= 0.0 {
+            return Ok(None);
+        }
+        Dop::new(value).map(Some).map_err(|e| self.value(e))
     }
 
     pub(crate) fn optional_unsigned<T: FromStr>(

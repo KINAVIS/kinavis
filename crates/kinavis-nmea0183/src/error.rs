@@ -10,7 +10,11 @@ use kinavis_kernel::KernelError;
 #[non_exhaustive]
 #[derive(Debug, Clone, PartialEq)]
 pub enum NmeaError {
-    /// Sentence, read or to be written, longer than the standard allows.
+    /// Sentence longer than the limit: [`MAX_ACCEPTED_BYTES`] to read,
+    /// [`MAX_SENTENCE_BYTES`] to write.
+    ///
+    /// [`MAX_ACCEPTED_BYTES`]: crate::MAX_ACCEPTED_BYTES
+    /// [`MAX_SENTENCE_BYTES`]: crate::MAX_SENTENCE_BYTES
     TooLong {
         /// Sentence length.
         length: usize,

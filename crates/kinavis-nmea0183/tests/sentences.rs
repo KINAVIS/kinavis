@@ -14,7 +14,7 @@ use kinavis_kernel::GnssFix;
 use kinavis_kernel::KernelError;
 use kinavis_nmea0183::{
     encode, parse, Channel, Date, Mode, NmeaError, Sentence, Status, Talker, TimeOfDay,
-    TranslationError, MAX_PAYLOAD_CHARS, MAX_SENTENCE_BYTES,
+    TranslationError, MAX_ACCEPTED_BYTES, MAX_PAYLOAD_CHARS, MAX_SENTENCE_BYTES,
 };
 
 #[test]
@@ -415,4 +415,95 @@ fn a_sentence_that_would_exceed_the_standard_length_is_refused_by_encode() {
             ..
         })
     ));
+}
+
+// Sentences below are from the gpsd regression logs (`test/daemon`, copyright
+// the GPSD project, BSD-2-Clause), recorded from the receivers named.
+
+#[test]
+fn a_high_precision_receiver_is_read_past_the_standard_length() {
+    // u-blox ZED-F9P with high-precision NMEA: 89 bytes.
+    let line = "$GNGGA,014500.00,4404.1306024,N,12118.8446777,W,2,12,0.49,1129.913,M,-21.350,M,,0278*4C\r\n";
+    assert!(line.len() > MAX_SENTENCE_BYTES);
+    let Sentence::Gga(gga) = parse(line.as_bytes()).unwrap() else {
+        panic!("not GGA")
+    };
+    let position = gga.position.unwrap();
+    assert_eq!(
+        format!("{:.7}", position.latitude().degrees()),
+        "44.0688434"
+    );
+    assert_eq!(
+        format!("{:.7}", position.longitude().degrees()),
+        "-121.3140780"
+    );
+    assert_eq!(gga.hdop.unwrap().value(), 0.49);
+}
+
+#[test]
+fn a_dop_of_zero_before_the_first_fix_reads_as_not_available() {
+    // SkyTraq S2525F8-BD-RTK after a cold start: 84 bytes, HDOP `0.0`.
+    let line = "$GPGGA,212406.000,0000.0000000,N,00000.0000000,E,0,00,0.0,0.000,M,0.000,M,,0000*6E";
+    let Sentence::Gga(gga) = parse(line.as_bytes()).unwrap() else {
+        panic!("not GGA")
+    };
+    assert_eq!(gga.hdop, None);
+    assert_eq!(gga.fix_type, FixType::None);
+}
+
+#[test]
+fn an_ais_fragment_with_a_64_character_payload_is_read() {
+    // AIS receiver: the first of two fragments of a type 5 message, 86 bytes.
+    let line =
+        "!AIVDM,2,1,0,A,56K2=I02ADS``C;W3J0PuE8Tr0pvs>222222221@6`8376630:2T81SP`3iQ`888,0*51";
+    let Sentence::Vdm(vdm) = parse(line.as_bytes()).unwrap() else {
+        panic!("not VDM")
+    };
+    assert_eq!(vdm.payload.as_bytes().len(), 64);
+}
+
+#[test]
+fn a_sentence_past_the_accepted_length_is_refused() {
+    let body = format!("GPGGA,{}0", "0,".repeat(46));
+    let line = with_checksum(&body);
+    assert_eq!(line.len(), MAX_ACCEPTED_BYTES + 1);
+    assert_eq!(
+        parse(line.as_bytes()),
+        Err(NmeaError::TooLong {
+            length: MAX_ACCEPTED_BYTES + 1,
+            limit: MAX_ACCEPTED_BYTES,
+        })
+    );
+}
+
+#[test]
+fn a_variation_of_999_9_reads_as_not_available() {
+    // Caterpillar MS352 without a magnetic model: 93 bytes, variation `999.9`.
+    let line =
+        "$GPRMC,113938.50,A,3842.86006889,N,11705.43645510,W,0.011,46.405,231122,999.9000,E,D*2E";
+    let Sentence::Rmc(rmc) = parse(line.as_bytes()).unwrap() else {
+        panic!("not RMC")
+    };
+    assert_eq!(rmc.variation, None);
+    assert!(GnssFix::try_from(rmc).is_ok());
+    // Between the physical limit and the marker: a corrupt field.
+    assert!(matches!(
+        parse(
+            with_checksum("GPRMC,113938.50,A,3842.86,N,11705.43,W,0.0,46.4,231122,500.0,E,D")
+                .as_bytes()
+        ),
+        Err(NmeaError::Value { .. })
+    ));
+}
+
+#[test]
+fn a_variation_without_a_magnitude_reads_as_not_available() {
+    // Saab R4 AIS transponder: no variation direction field, so the mode
+    // indicator sits where the direction belongs.
+    let line = "$GPRMC,130711.00,A,5012.790800,N,00806.879600,W,0.5,3.0,010611,,A*6A";
+    let Sentence::Rmc(rmc) = parse(line.as_bytes()).unwrap() else {
+        panic!("not RMC")
+    };
+    assert_eq!(rmc.variation, None);
+    assert!(GnssFix::try_from(rmc).is_ok());
 }

@@ -1,14 +1,24 @@
 //! Sentence framing: start character, address, fields, checksum.
 //!
-//! Checks what every sentence must satisfy — at most 82 bytes, printable ASCII,
-//! `$` or `!` start, matching `*hh` checksum — and returns the address and
-//! fields as slices of the input. No copying.
+//! Checks what every sentence must satisfy — at most [`MAX_ACCEPTED_BYTES`],
+//! printable ASCII, `$` or `!` start, matching `*hh` checksum — and returns the
+//! address and fields as slices of the input. No copying.
 
 use crate::error::NmeaError;
 use crate::field::Field;
 
-/// Maximum sentence length, `$` and `CR LF` included.
+/// Maximum sentence length in the standard, `$` and `CR LF` included.
+/// [`encode`](crate::encode) never writes more.
 pub const MAX_SENTENCE_BYTES: usize = 82;
+
+/// Maximum sentence length [`parse`](crate::parse) accepts, `$` and `CR LF`
+/// included.
+///
+/// Above the standard's 82 bytes: high-precision receivers write GGA and RMC
+/// with seven or eight decimals of a minute, and AIS receivers write fragments
+/// with up to 64 payload characters, both past 82 bytes. The same limit as
+/// gpsd.
+pub const MAX_ACCEPTED_BYTES: usize = 102;
 
 /// Sentence that passed framing checks.
 #[derive(Debug, Clone, Copy)]
@@ -24,10 +34,10 @@ pub(crate) struct Frame<'a> {
 impl<'a> Frame<'a> {
     /// Validates framing and splits the sentence.
     pub(crate) fn parse(sentence: &'a [u8]) -> Result<Self, NmeaError> {
-        if sentence.len() > MAX_SENTENCE_BYTES {
+        if sentence.len() > MAX_ACCEPTED_BYTES {
             return Err(NmeaError::TooLong {
                 length: sentence.len(),
-                limit: MAX_SENTENCE_BYTES,
+                limit: MAX_ACCEPTED_BYTES,
             });
         }
         let trimmed = trim_terminator(sentence);
@@ -53,7 +63,7 @@ impl<'a> Frame<'a> {
         }
 
         // Offsets within the sentence: +1 for the start character.
-        for (offset, &byte) in (1..=MAX_SENTENCE_BYTES).zip(body) {
+        for (offset, &byte) in (1..=MAX_ACCEPTED_BYTES).zip(body) {
             if !is_allowed(byte) {
                 return Err(NmeaError::BadCharacter { offset });
             }
@@ -150,12 +160,12 @@ impl<'a> Fields<'a> {
     /// Fields with their indices. A sentence has fewer fields than bytes, so
     /// the bounded range is never exhausted first.
     pub(crate) fn indexed(self) -> impl Iterator<Item = Field<'a>> {
-        self.zip(0..MAX_SENTENCE_BYTES)
+        self.zip(0..MAX_ACCEPTED_BYTES)
             .map(|(bytes, index)| Field { bytes, index })
     }
 }
 
-/// Occurrences of a byte. Sentences are ≤ 82 bytes, so a naive count suffices.
+/// Occurrences of a byte. Sentences are ≤ 102 bytes, so a naive count suffices.
 ///
 /// A fold rather than `count`, whose overflow-checked counter the strict
 /// profile would flag.
@@ -225,8 +235,8 @@ mod tests {
             NmeaError::BadChecksum { .. }
         ));
         assert!(matches!(
-            Frame::parse(&[b'$'; 83]).unwrap_err(),
-            NmeaError::TooLong { length: 83, .. }
+            Frame::parse(&[b'$'; 103]).unwrap_err(),
+            NmeaError::TooLong { length: 103, .. }
         ));
         // Control character inside an otherwise valid sentence.
         let mut bad = *b"$GPGLL,\x01*00";

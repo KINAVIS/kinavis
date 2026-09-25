@@ -24,7 +24,7 @@ license = "MIT OR Apache-2.0"
 # Workspace crates, so members reference siblings with the workspace version.
 kinavis-kernel = { version = "1.0.0", path = "crates/kinavis-kernel", default-features = false }
 kinavis = { version = "1.0.0", path = "crates/kinavis", default-features = false }
-kinavis-nmea0183 = { version = "0.1.0", path = "crates/kinavis-nmea0183", default-features = false }
+kinavis-nmea0183 = { version = "0.1.1", path = "crates/kinavis-nmea0183", default-features = false }
 
 libm = { version = "0.2", default-features = false }
 serde = { version = "1", default-features = false, features = [

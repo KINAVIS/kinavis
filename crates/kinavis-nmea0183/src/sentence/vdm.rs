@@ -19,9 +19,10 @@ use crate::sentence::Talker;
 
 /// Maximum payload characters per fragment.
 ///
-/// 82 bytes minus address, five short fields, commas, checksum and terminator
-/// leaves 62; receivers send at most that.
-pub const MAX_PAYLOAD_CHARS: usize = 62;
+/// [`MAX_ACCEPTED_BYTES`](crate::MAX_ACCEPTED_BYTES) minus address, five
+/// short fields, commas, checksum and terminator. The standard's 82 bytes
+/// leave 62; receivers send up to 64.
+pub const MAX_PAYLOAD_CHARS: usize = 80;
 
 /// Maximum number of fragments per message.
 pub const MAX_FRAGMENTS: u8 = 9;

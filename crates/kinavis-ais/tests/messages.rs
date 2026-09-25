@@ -171,14 +171,9 @@ fn a_value_the_domain_rejects_is_an_error_not_a_position() {
             error: KernelError::OutOfRange { .. }
         })
     ));
-    // Heading 400°.
-    assert!(matches!(
-        report("!AIVDM,1,1,,A,13aEOK000000000000000<P00000,0*68"),
-        Err(AisError::Value {
-            field: "heading",
-            error: KernelError::OutOfRange { .. }
-        })
-    ));
+    // Heading 400° is unused by the standard, not corrupt: not available.
+    let report = report("!AIVDM,1,1,,A,13aEOK000000000000000<P00000,0*68").unwrap();
+    assert_eq!(report.heading, None);
 }
 
 #[test]
@@ -242,4 +237,17 @@ fn a_message_round_trips_through_serde() {
         Message::PositionReport(report("!AIVDM,1,1,,A,35M:Ih0;iso?d`0E`Ah9TWg20000,0*60").unwrap());
     let json = serde_json::to_string(&message).unwrap();
     assert_eq!(serde_json::from_str::<Message>(&json).unwrap(), message);
+}
+
+#[test]
+fn a_heading_the_standard_does_not_use_reads_as_not_available() {
+    // Class B reports from the gpsd regression logs `test/daemon/ais-*.log`
+    // (copyright the GPSD project, BSD-2-Clause). Heading 480: the position,
+    // course and speed are kept.
+    let transponder = report("!AIVDM,1,1,,B,B6:JE@P002;4TD5HfhH03h24SP00,0*0C").unwrap();
+    assert_eq!(transponder.heading, None);
+    assert!(transponder.position.is_some());
+    // 360, the first unused value, likewise.
+    let unused = report("!AIVDM,1,1,,A,B3KILP000@LWW8`VVWcQ2l063P06,0*75").unwrap();
+    assert_eq!(unused.heading, None);
 }

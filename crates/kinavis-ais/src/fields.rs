@@ -14,7 +14,8 @@ const NO_SPEED: u32 = 1023;
 const NO_LONGITUDE: i32 = 181 * 600_000;
 const NO_LATITUDE: i32 = 91 * 600_000;
 const NO_COURSE: u32 = 3600;
-const NO_HEADING: u32 = 511;
+/// 511, and the unused 360 to 510.
+const NOT_A_HEADING: u32 = 360;
 
 /// Message of at least `needed` bits, so fields are read without per-field
 /// length checks.
@@ -111,8 +112,10 @@ pub(crate) fn course(field: u32) -> Result<Option<TrueCourse>, AisError> {
         .map_err(value_of("course"))
 }
 
+/// 360 to 510 are unused by the standard but sent by transponders; they read
+/// as not available, like 511, so the rest of the report is kept.
 pub(crate) fn heading(field: u32) -> Result<Option<TrueCourse>, AisError> {
-    if field == NO_HEADING {
+    if field >= NOT_A_HEADING {
         return Ok(None);
     }
     TrueCourse::new(f64::from(field))
