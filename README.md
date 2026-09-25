@@ -37,9 +37,9 @@ collision assessment and a bridge alert out.
   the same plan: the `std` and the pure-Rust `libm` maths are held to agree
   within 1e-13, and the estimator is a pure function that replays a voyage
   step by step.
-- **Verified.** The parsers are fuzzed and tested on real receivers' output
-  from the gpsd and Signal K logs; the algorithms are checked against
-  published reference values — NOAA's WMM test points, Vincenty's test
+- **Verified.** The parsers are fuzzed, and CI reads every sentence of
+  gpsd's two hundred logs of real receivers against a recorded tally; the
+  algorithms are checked against published reference values — NOAA's WMM test points, Vincenty's test
   lines, PROJ's datum shifts; and the filters pass Monte Carlo consistency
   tests.
 

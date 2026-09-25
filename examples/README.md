@@ -65,6 +65,30 @@ UTC       position                       COG    track    steer        off track 
 09:47:37  52°51.009'N 005°18.817'E   230.5°T  235.7°T  235.7°T      0.19 M Port  8.82 M  off track: 0.19 M > 0.10 M
 ```
 
+## Every gpsd log, in CI
+
+`tests/gpsd_corpus.rs` reads every sentence of the gpsd regression logs —
+about two hundred logs of real receivers, fetched at a pinned gpsd commit —
+and counts what became of each: read as which sentence, refused for which
+error, a fix or not, which AIS message. CI fails when a count changes, so a
+parser change shows its effect on real receivers in the diff of
+[`tests/gpsd_corpus.expected`](tests/gpsd_corpus.expected):
+
+```text
+   2659 RMC: fix
+    180 RMC: no fix, NoPosition
+   3026 GGA: position
+    804 AIS: position report, type 1
+    388 refused: BadChecksum
+    483 refused: NoChecksum
+```
+
+To run it locally, with gpsd's `test/daemon` checked out:
+
+```sh
+GPSD_LOGS=path/to/gpsd/test/daemon cargo test -p kinavis-examples --test gpsd_corpus -- --ignored
+```
+
 ## Data
 
 | File | Source | Licence |
