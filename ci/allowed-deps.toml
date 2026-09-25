@@ -62,3 +62,8 @@ allow = ["kinavis-kernel", "serde"]
 # the kernel's types and matrices; the six-state estimator consumes it,
 # never the other way round.
 allow = ["kinavis-kernel", "serde"]
+
+[kinavis-examples]
+# Unpublished demonstrations. Every KINAVIS crate they use is a
+# dev-dependency, so the shipped graph of this package is empty.
+allow = []

@@ -9,10 +9,12 @@
 ![no_std](https://img.shields.io/badge/no__std-no%20allocator-blue.svg)
 [![License: MIT OR Apache-2.0](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](#license)
 
-Marine navigation in Rust, from the bytes a sensor sends to the numbers the
-officer of the watch acts on: NMEA 0183, NMEA 2000, AIS and an IMU in; a
-position, a course to steer, a collision assessment and a bridge alert out —
-on a microcontroller or a workstation alike.
+**Marine navigation for Rust** — NMEA 0183, NMEA 2000, AIS, GNSS, INS and the
+COLREGs, from a `no_std` microcontroller to a workstation.
+
+From the bytes a sensor sends to the numbers the officer of the watch acts on:
+NMEA 0183, NMEA 2000, AIS and an IMU in; a position, a course to steer, a
+collision assessment and a bridge alert out.
 
 ## Why KINAVIS
 
@@ -23,15 +25,46 @@ on a microcontroller or a workstation alike.
 - **No `unsafe`**, and no third-party dependencies in the default build.
 - **Types that carry meaning.** A compass course cannot be passed where a true
   one belongs, a time in GPS cannot be mixed with UTC, knots cannot be
-  mistaken for metres per second — the compiler refuses.
+  mistaken for metres per second — the compiler refuses:
+
+  ```text
+  let course = TrueCourse::new(90.0)?;
+  magnetic_to_true(course, variation);
+                   ^^^^^^ expected `Direction<Magnetic>`, found `Direction<True>`
+  ```
+
 - **Reproducible.** A passage planned ashore and recomputed on the bridge is
   the same plan: the `std` and the pure-Rust `libm` maths are held to agree
   within 1e-13, and the estimator is a pure function that replays a voyage
   step by step.
-- **Verified.** The parsers are fuzzed; the algorithms are checked against
+- **Verified.** The parsers are fuzzed and tested on real receivers' output
+  from the gpsd and Signal K logs; the algorithms are checked against
   published reference values — NOAA's WMM test points, Vincenty's test
   lines, PROJ's datum shifts; and the filters pass Monte Carlo consistency
   tests.
+
+## See it run
+
+Four demonstrations in [`examples/`](examples/), each on data recorded from
+real equipment — gpsd's receiver logs and a Signal K AIS recording:
+
+| Demonstration | What it shows |
+|---|---|
+| `receivers` | seven receivers' NMEA, including an RTK receiver past 82 bytes and a line that lost bytes in transit, read or refused |
+| `gnss_jump` | a yacht's track with one fix moved forty miles: `REFUSED  implausible jump: 144094 kn implied` |
+| `traffic` | 1459 AIS messages off Harlingen decoded; CPA and TCPA of every ship against one of them |
+| `course_to_steer` | the same yacht against a passage plan: cross-track error and the cross-track alarm |
+
+```sh
+cargo run -p kinavis-examples --example traffic
+```
+
+```text
+ship                     bearing    range      CPA    TCPA  risk
+245513000                075.0°T  35.61 M   0.12 M   76:02  developing
+218784000                147.9°T   1.34 M   1.33 M    0:55  DANGEROUS
+246754000                062.7°T  25.80 M   2.03 M   45:33  passing clear
+```
 
 ## Crates
 
@@ -135,6 +168,17 @@ through the rest — the sailings, fixing, deviation tables and the inverse
 problem, the current triangle, errors, `serde`, and what each aggregate
 weighs in memory — with examples that are compiled and run as tests.
 
+## Help wanted: real hardware
+
+Everything here is tested against recorded data, reference values and
+simulation. What cannot be tested that way is how it behaves on a real bridge:
+a GNSS receiver losing the sky, an NMEA 2000 backbone under load, an AIS
+receiver in a crowded anchorage, an IMU strapped to a hull in a seaway, a
+microcontroller with a real stack budget. If you have such equipment and would
+run KINAVIS against it — or can share a recording of what it sends — please
+[open an issue](https://github.com/KINAVIS/kinavis/issues). Logs from the sea
+are worth more than any number of tests on land.
+
 ## Stability
 
 `kinavis` and `kinavis-kernel` are at 1.x: within the major version nothing
@@ -147,17 +191,6 @@ and version on their own. The minimum supported Rust version is 1.85; raising it
 - [docs.rs](https://docs.rs/kinavis) — the API of every crate, with examples.
 - [`ARCHITECTURE.md`](ARCHITECTURE.md) — the layers, the dependency rule and the context map.
 - [`SECURITY.md`](SECURITY.md) — the threat model and how to report a vulnerability.
-
-## Help wanted: real hardware
-
-Everything here is tested against recorded data, reference values and
-simulation. What cannot be tested that way is how it behaves on a real bridge:
-a GNSS receiver losing the sky, an NMEA 2000 backbone under load, an AIS
-receiver in a crowded anchorage, an IMU strapped to a hull in a seaway, a
-microcontroller with a real stack budget. If you have such equipment and would
-run KINAVIS against it — or can share a recording of what it sends — please
-[open an issue](https://github.com/KINAVIS/kinavis/issues). Logs from the sea
-are worth more than any number of tests on land.
 
 ## License
 

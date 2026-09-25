@@ -82,6 +82,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "kinavis-examples"
+version = "0.0.0"
+dependencies = [
+ "kinavis",
+ "kinavis-ais",
+ "kinavis-nmea0183",
+ "kinavis-traffic",
+]
+
+[[package]]
 name = "kinavis-ins"
 version = "0.1.0"
 dependencies = [
