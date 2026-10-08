@@ -92,6 +92,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "kinavis-geoid"
+version = "0.1.0"
+dependencies = [
+ "kinavis-kernel",
+ "proptest",
+]
+
+[[package]]
 name = "kinavis-ins"
 version = "0.1.0"
 dependencies = [
