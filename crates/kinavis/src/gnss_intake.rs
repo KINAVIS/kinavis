@@ -88,6 +88,7 @@ impl IntakeOutcome {
     }
 
     /// Events in order: loss, acquisition, rejection with reason.
+    #[must_use]
     pub const fn events(&self) -> &EventList {
         &self.events
     }

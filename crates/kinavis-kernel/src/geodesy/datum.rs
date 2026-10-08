@@ -314,6 +314,31 @@ impl Datum {
         accuracy_metres: 3.0,
     };
 
+    /// Pulkovo 1995 (СК-95), on Krassowsky 1940: Russian maps between СК-42 and
+    /// ГСК-2011. EPSG 5043 (GOST R 51794-2001, Russia), 1 m. Published in the
+    /// coordinate frame convention; stored here in the position vector
+    /// convention.
+    pub const PULKOVO_1995: Self = Self {
+        name: "Pulkovo 1995",
+        ellipsoid: Ellipsoid::KRASSOWSKY_1940,
+        to_wgs84: Helmert {
+            translation: [24.47, -130.89, -81.56],
+            rotation: [0.0, 0.0, 0.13],
+            scale_ppm: -0.22,
+        },
+        accuracy_metres: 1.0,
+    };
+
+    /// GSK-2011 (ГСК-2011), on its own ellipsoid: the Russian state system
+    /// since 2017. EPSG 9773 (null shift at the stated accuracy), 1 m; the
+    /// ellipsoid alone moves a position by centimetres.
+    pub const GSK_2011: Self = Self {
+        name: "GSK-2011",
+        ellipsoid: Ellipsoid::GSK_2011,
+        to_wgs84: Helmert::IDENTITY,
+        accuracy_metres: 1.0,
+    };
+
     /// Tokyo, on Bessel 1841: Japanese and Korean charts before JGD 2000. EPSG
     /// 1230 (Japan and South Korea mean), 29 m; the shift itself exceeds 400 m.
     pub const TOKYO: Self = Self {

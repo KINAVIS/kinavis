@@ -2,7 +2,8 @@
 
 Value types of the [KINAVIS](https://github.com/KINAVIS/kinavis) crates:
 frame-tagged angles, units, positions, time scales, geodesy and chart datums,
-events, the error type, and the floating-point primitives.
+local frames and three-dimensional motion, satellites in view, events, the error
+type, and the floating-point primitives.
 
 The kernel holds what has exactly one correct implementation. Algorithms
 (sailings, fixes, dead reckoning, deviation) are in `kinavis`; every satellite

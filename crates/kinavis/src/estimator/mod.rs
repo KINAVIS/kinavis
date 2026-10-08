@@ -293,6 +293,7 @@ pub struct Outcome {
 
 impl Outcome {
     /// Events.
+    #[must_use]
     pub const fn events(&self) -> &EventList {
         &self.events
     }

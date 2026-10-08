@@ -93,6 +93,13 @@ impl Ellipsoid {
         inverse_flattening: 298.3,
     };
 
+    /// GSK-2011 (ГСК-2011): the Russian state geodetic system since 2017. EPSG
+    /// 1025.
+    pub const GSK_2011: Self = Self {
+        semi_major_metres: 6_378_136.5,
+        inverse_flattening: 298.256_415_1,
+    };
+
     /// Bessel 1841: Tokyo datum, DHDN.
     pub const BESSEL_1841: Self = Self {
         semi_major_metres: 6_377_397.155,
@@ -299,6 +306,39 @@ impl Height {
     pub const fn datum(&self) -> VerticalDatum {
         self.datum
     }
+
+    /// `self − other`: how far `self` is above `other`.
+    ///
+    /// # Errors
+    ///
+    /// [`KernelError::VerticalDatumMismatch`] if the datums differ; heights on
+    /// different datums are compared only after converting one of them.
+    pub fn difference(self, other: Self) -> Result<Distance> {
+        if self.datum != other.datum {
+            return Err(KernelError::VerticalDatumMismatch {
+                required: self.datum,
+                found: other.datum,
+            });
+        }
+        Ok(self.value - other.value)
+    }
+}
+
+/// Geoid model: height of the geoid above the ellipsoid.
+///
+/// A port: implementations (grids, embedded models) live in adapter crates.
+/// The geoid stands for mean sea level, so the model converts between
+/// [`VerticalDatum::Ellipsoid`] and [`VerticalDatum::MeanSeaLevel`]:
+/// `h = H + N`, ellipsoidal height `h`, orthometric height `H`, undulation `N`.
+pub trait GeoidModel {
+    /// Undulation `N` at a position, positive where the geoid lies above the
+    /// ellipsoid.
+    ///
+    /// # Errors
+    ///
+    /// Implementation-defined: typically [`KernelError::OutsideValidity`]
+    /// outside the model's coverage.
+    fn undulation(&self, position: Position) -> Result<Distance>;
 }
 
 impl fmt::Display for Height {
@@ -340,6 +380,57 @@ impl GeodeticPoint {
     #[must_use]
     pub const fn height(&self) -> Height {
         self.height
+    }
+
+    /// Same point with an ellipsoidal height.
+    ///
+    /// A mean-sea-level height gains the geoid undulation; an ellipsoidal one
+    /// is returned unchanged without consulting the model.
+    ///
+    /// # Errors
+    ///
+    /// [`KernelError::VerticalDatumMismatch`] for chart datum, which needs a
+    /// tide model rather than a geoid; the model's own errors otherwise.
+    pub fn to_ellipsoidal(self, geoid: &impl GeoidModel) -> Result<Self> {
+        match self.height.datum {
+            VerticalDatum::Ellipsoid => Ok(self),
+            VerticalDatum::MeanSeaLevel => {
+                let undulation = geoid.undulation(self.position)?;
+                Ok(Self::new(
+                    self.position,
+                    Height::above_ellipsoid(self.height.value + undulation),
+                ))
+            }
+            VerticalDatum::ChartDatum => Err(KernelError::VerticalDatumMismatch {
+                required: VerticalDatum::MeanSeaLevel,
+                found: self.height.datum,
+            }),
+        }
+    }
+
+    /// Same point with a mean-sea-level height.
+    ///
+    /// An ellipsoidal height loses the geoid undulation; a mean-sea-level one is
+    /// returned unchanged without consulting the model.
+    ///
+    /// # Errors
+    ///
+    /// As [`GeodeticPoint::to_ellipsoidal`].
+    pub fn to_mean_sea_level(self, geoid: &impl GeoidModel) -> Result<Self> {
+        match self.height.datum {
+            VerticalDatum::MeanSeaLevel => Ok(self),
+            VerticalDatum::Ellipsoid => {
+                let undulation = geoid.undulation(self.position)?;
+                Ok(Self::new(
+                    self.position,
+                    Height::above_mean_sea_level(self.height.value - undulation),
+                ))
+            }
+            VerticalDatum::ChartDatum => Err(KernelError::VerticalDatumMismatch {
+                required: VerticalDatum::Ellipsoid,
+                found: self.height.datum,
+            }),
+        }
     }
 }
 
@@ -666,5 +757,43 @@ mod tests {
         let north = EcefPoint::from_geodetic(point(90.0, 0.0, 0.0), &Ellipsoid::WGS84).unwrap();
         let south = EcefPoint::from_geodetic(point(-90.0, 0.0, 0.0), &Ellipsoid::WGS84).unwrap();
         assert!((north.chord_to(south).metres() - 2.0 * 6_356_752.314_245).abs() < 1e-6);
+    }
+
+    struct Flat(f64);
+
+    impl GeoidModel for Flat {
+        fn undulation(&self, _position: Position) -> Result<Distance> {
+            Distance::from_metres(self.0)
+        }
+    }
+
+    struct Uncovered;
+
+    impl GeoidModel for Uncovered {
+        fn undulation(&self, _position: Position) -> Result<Distance> {
+            Err(KernelError::OutsideValidity { data: "geoid grid" })
+        }
+    }
+
+    #[test]
+    fn the_geoid_moves_heights_between_ellipsoid_and_sea_level() {
+        // Geoid 47 m above the ellipsoid: an antenna 52 m above the ellipsoid
+        // is 5 m above the sea.
+        let antenna = point(50.0, -1.0, 52.0);
+        let msl = antenna.to_mean_sea_level(&Flat(47.0)).unwrap();
+        assert_eq!(msl.height().datum(), VerticalDatum::MeanSeaLevel);
+        assert!((msl.height().value().metres() - 5.0).abs() < 1e-9);
+        assert_eq!(msl.to_mean_sea_level(&Uncovered).unwrap(), msl);
+        assert_eq!(antenna.to_ellipsoidal(&Uncovered).unwrap(), antenna);
+        assert!(msl.to_ellipsoidal(&Uncovered).is_err());
+        let charted = GeodeticPoint::new(
+            antenna.position(),
+            Height::above_chart_datum(Distance::ZERO),
+        );
+        assert!(matches!(
+            charted.to_ellipsoidal(&Flat(0.0)),
+            Err(KernelError::VerticalDatumMismatch { .. })
+        ));
+        assert!(charted.to_mean_sea_level(&Flat(0.0)).is_err());
     }
 }

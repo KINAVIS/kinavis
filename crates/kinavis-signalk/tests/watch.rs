@@ -97,7 +97,7 @@ fn a_crossing_target_on_the_starboard_bow_raises_one_alarm_until_it_clears() {
 
     // The same picture again: the alarm stands, nothing new is notified.
     let (_, emissions) = watch.assess(at("2026-09-25T12:00:01Z"));
-    assert!(notifications(&emissions).is_empty());
+    assert_eq!(notifications(&emissions).len(), 0);
 
     // The target turns away north-east, opening: the alarm is cleared.
     watch
@@ -126,7 +126,7 @@ fn a_target_gone_silent_is_cleared_once_stale() {
     // Own vessel reports for four minutes; the target does not.
     own(&mut watch, "vessels.self", "2026-09-25T12:04:00Z");
     let (reports, emissions) = watch.assess(at("2026-09-25T12:04:00Z"));
-    assert!(reports.is_empty());
+    assert_eq!(reports.len(), 0);
     let cleared = notifications(&emissions);
     assert_eq!(cleared[0].1["state"], "normal");
     assert_eq!(cleared[0].1["message"], "no longer assessed");
@@ -295,7 +295,7 @@ fn a_receiver_clock_ahead_of_the_watch_is_current_and_own_vessel_can_go_stale() 
     let mut watch = Watch::new(WatchConfig::default());
     own(&mut watch, "vessels.self", "2026-09-25T12:00:00Z");
     target(&mut watch, "2026-09-25T12:04:00Z", 53.025, 5.041_55, &[]);
-    assert!(watch.assess(at("2026-09-25T12:04:01Z")).0.is_empty());
+    assert_eq!(watch.assess(at("2026-09-25T12:04:01Z")).0.len(), 0);
 }
 
 #[test]
@@ -339,5 +339,5 @@ fn own_vessel_at_rest_gets_cpas_but_no_ruling_and_far_warnings_are_not_raised() 
         .unwrap();
     let (reports, emissions) = watch.assess(at("2026-09-25T12:00:01Z"));
     assert_eq!(reports[0].level, Level::Normal);
-    assert!(notifications(&emissions).is_empty());
+    assert_eq!(notifications(&emissions).len(), 0);
 }

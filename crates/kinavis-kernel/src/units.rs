@@ -1,10 +1,10 @@
-//! Angles, distances, speeds and rates of turn as types.
+//! Angles, distances, speeds, accelerations and rates of turn as types.
 //!
 //! A function taking `(f64, f64)` cannot distinguish knots from m/s; these
 //! types can.
 //!
-//! Internally distances are nautical miles, speeds knots, rates of turn °/min;
-//! construct and read in any unit.
+//! Internally distances are nautical miles, speeds knots, accelerations m/s²,
+//! rates of turn °/min; construct and read in any unit.
 //!
 //! # Example
 //!
@@ -540,6 +540,106 @@ impl Mul<f64> for Speed {
     }
 }
 
+/// Standard acceleration of gravity, m/s² (CGPM 1901).
+pub const STANDARD_GRAVITY: f64 = 9.806_65;
+
+/// Acceleration, stored in m/s².
+///
+/// Signed along whatever axis it is measured on; a vector of accelerations is
+/// a [`Vector3`](crate::local::Vector3) in a named frame.
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Default)]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde::Serialize, serde::Deserialize),
+    serde(try_from = "f64", into = "f64")
+)]
+pub struct Acceleration(f64);
+
+impl Acceleration {
+    /// Zero.
+    pub const ZERO: Self = Self(0.0);
+
+    /// From m/s².
+    ///
+    /// # Errors
+    ///
+    /// [`KernelError::NotFinite`] for `NaN` or infinity.
+    pub fn from_metres_per_second_squared(value: f64) -> Result<Self> {
+        ensure_finite("acceleration", value)?;
+        Ok(Self(value))
+    }
+
+    /// From multiples of [`STANDARD_GRAVITY`].
+    ///
+    /// # Errors
+    ///
+    /// [`KernelError::NotFinite`] for `NaN` or infinity.
+    pub fn from_g(value: f64) -> Result<Self> {
+        ensure_finite("acceleration", value)?;
+        Ok(Self(value * STANDARD_GRAVITY))
+    }
+
+    /// m/s².
+    #[must_use]
+    pub const fn metres_per_second_squared(self) -> f64 {
+        self.0
+    }
+
+    /// Multiples of [`STANDARD_GRAVITY`].
+    #[must_use]
+    pub fn g(self) -> f64 {
+        self.0 / STANDARD_GRAVITY
+    }
+
+    /// Absolute value.
+    #[must_use]
+    pub fn abs(self) -> Self {
+        Self(math::abs(self.0))
+    }
+
+    /// Speed gained in `elapsed` at this constant acceleration.
+    #[must_use]
+    pub fn speed_gained(self, elapsed: Duration) -> Speed {
+        Speed(self.0 * elapsed.as_secs_f64() * SECONDS_PER_HOUR / METRES_PER_NAUTICAL_MILE)
+    }
+}
+
+impl fmt::Display for Acceleration {
+    /// Formats as `9.81 m/s²`.
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let precision = f.precision().unwrap_or(2);
+        write!(f, "{:.precision$} m/s²", self.0)
+    }
+}
+
+impl Neg for Acceleration {
+    type Output = Self;
+    fn neg(self) -> Self {
+        Self(-self.0)
+    }
+}
+
+impl Add for Acceleration {
+    type Output = Self;
+    fn add(self, other: Self) -> Self {
+        Self(self.0 + other.0)
+    }
+}
+
+impl Sub for Acceleration {
+    type Output = Self;
+    fn sub(self, other: Self) -> Self {
+        Self(self.0 - other.0)
+    }
+}
+
+impl Mul<f64> for Acceleration {
+    type Output = Self;
+    fn mul(self, factor: f64) -> Self {
+        Self(self.0 * factor)
+    }
+}
+
 /// Rate of turn in °/min, as shown by the ROT indicator.
 ///
 /// Positive to starboard. Keeps °/min distinct from rad/s.
@@ -720,6 +820,23 @@ impl TryFrom<f64> for Speed {
 #[cfg(feature = "serde")]
 impl From<Speed> for f64 {
     fn from(value: Speed) -> Self {
+        value.0
+    }
+}
+
+#[cfg(feature = "serde")]
+impl TryFrom<f64> for Acceleration {
+    type Error = KernelError;
+
+    /// Validated on deserialisation.
+    fn try_from(value: f64) -> Result<Self> {
+        Self::from_metres_per_second_squared(value)
+    }
+}
+
+#[cfg(feature = "serde")]
+impl From<Acceleration> for f64 {
+    fn from(value: Acceleration) -> Self {
         value.0
     }
 }
@@ -923,5 +1040,20 @@ mod tests {
         );
         assert_eq!(format!("{:.2}", Speed::from_knots(8.5).unwrap()), "8.50 kn");
         assert_eq!(format!("{}", Angle::from_degrees(-1.25).unwrap()), "-1.2°");
+    }
+
+    #[test]
+    fn an_acceleration_reads_in_g_and_builds_speed_over_time() {
+        let one_g = Acceleration::from_g(1.0).unwrap();
+        assert_eq!(one_g.metres_per_second_squared(), STANDARD_GRAVITY);
+        assert!((one_g.g() - 1.0).abs() < 1e-15);
+        assert!(Acceleration::from_metres_per_second_squared(f64::NAN).is_err());
+        assert!(Acceleration::from_g(f64::INFINITY).is_err());
+        let gained = Acceleration::from_metres_per_second_squared(2.0)
+            .unwrap()
+            .speed_gained(Duration::from_secs(5));
+        assert!((gained.metres_per_second() - 10.0).abs() < 1e-12);
+        assert_eq!((-one_g).abs(), one_g);
+        assert_eq!(format!("{one_g}"), "9.81 m/s²");
     }
 }

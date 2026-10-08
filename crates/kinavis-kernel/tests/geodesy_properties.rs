@@ -1,9 +1,12 @@
-//! Geodetic ↔ ECEF round trip over the whole Earth and beyond.
+//! Geodetic ↔ ECEF round trip over the whole Earth and beyond; heights across
+//! vertical datums.
 
 #![allow(clippy::expect_used)]
 
-use kinavis_kernel::geodesy::{Datum, EcefPoint, Ellipsoid, GeodeticPoint, Height, Helmert};
-use kinavis_kernel::{Distance, Latitude, Longitude, Position};
+use kinavis_kernel::geodesy::{
+    Datum, EcefPoint, Ellipsoid, GeodeticPoint, GeoidModel, Height, Helmert, VerticalDatum,
+};
+use kinavis_kernel::{Distance, KernelError, Latitude, Longitude, Position};
 use proptest::prelude::*;
 
 fn any_point() -> impl Strategy<Value = GeodeticPoint> {
@@ -27,6 +30,17 @@ fn any_point() -> impl Strategy<Value = GeodeticPoint> {
             Height::above_ellipsoid(Distance::from_metres(height).expect("finite")),
         )
     })
+}
+
+/// Geoid undulation varying with position, as a real model does.
+struct Wavy;
+
+impl GeoidModel for Wavy {
+    fn undulation(&self, position: Position) -> Result<Distance, KernelError> {
+        Distance::from_metres(
+            40.0 * position.latitude().radians().sin() * position.longitude().radians().cos(),
+        )
+    }
 }
 
 proptest! {
@@ -117,5 +131,36 @@ proptest! {
         prop_assert!(back.chord_to(ecef).metres() < 1e-6, "off by {} m", back.chord_to(ecef).metres());
         let forth = helmert.apply(helmert.apply_inverse(ecef));
         prop_assert!(forth.chord_to(ecef).metres() < 1e-6);
+    }
+
+    #[test]
+    fn a_height_difference_is_antisymmetric_and_needs_one_datum(
+        a in -11_000.0_f64..=9_000.0,
+        b in -11_000.0_f64..=9_000.0,
+    ) {
+        let metres = |value| Distance::from_metres(value).expect("finite");
+        let (upper, lower) = (Height::above_mean_sea_level(metres(a)), Height::above_mean_sea_level(metres(b)));
+        let up = upper.difference(lower).expect("same datum").metres();
+        let down = lower.difference(upper).expect("same datum").metres();
+        prop_assert!((up + down).abs() < 1e-9);
+        prop_assert!((up - (a - b)).abs() < 1e-6);
+        let ellipsoidal = Height::above_ellipsoid(metres(b));
+        prop_assert!(
+            matches!(
+                upper.difference(ellipsoidal),
+                Err(KernelError::VerticalDatumMismatch { required: VerticalDatum::MeanSeaLevel, found: VerticalDatum::Ellipsoid })
+            ),
+            "heights on different datums compared"
+        );
+    }
+
+    #[test]
+    fn through_the_geoid_and_back_is_the_identity(point in any_point()) {
+        let msl = point.to_mean_sea_level(&Wavy).expect("model covers the Earth");
+        prop_assert_eq!(msl.height().datum(), VerticalDatum::MeanSeaLevel);
+        let back = msl.to_ellipsoidal(&Wavy).expect("model covers the Earth");
+        prop_assert_eq!(back.height().datum(), VerticalDatum::Ellipsoid);
+        prop_assert!((back.height().value().metres() - point.height().value().metres()).abs() < 1e-6);
+        prop_assert_eq!(back.position(), point.position());
     }
 }

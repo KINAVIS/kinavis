@@ -878,7 +878,7 @@ fn under_keel_clearance_never_panics_on_hostile_numbers() {
         .filter_map(|(draught, cb)| Hull::new(Distance::from_metres(draught).ok()?, cb).ok())
         .chain([Hull::new(Distance::from_metres(12.0).unwrap(), 0.85).unwrap()])
         .collect::<Vec<_>>();
-    assert!(!hulls.is_empty());
+    assert_ne!(hulls.len(), 0);
 
     for hull in &hulls {
         for &knots in &HOSTILE {

@@ -29,12 +29,26 @@
 //! assert_eq!(MagneticCourse::wrap(-10.0)?.degrees(), 350.0);
 //! # Ok::<(), kinavis_kernel::KernelError>(())
 //! ```
+//!
+//! A grid course off a projected map is not a true course; the meridian
+//! convergence separates them:
+//!
+//! ```compile_fail
+//! use kinavis_kernel::{GridCourse, TrueCourse};
+//!
+//! fn steer(course: TrueCourse) -> f64 {
+//!     course.degrees()
+//! }
+//! let off_the_map = GridCourse::new(45.0).unwrap();
+//! steer(off_the_map); // expected `Direction<True>`, found `Direction<Grid>`
+//! ```
 
 use core::fmt;
 use core::marker::PhantomData;
 
 use crate::error::{ensure_finite, ensure_range, KernelError, Result};
 use crate::math;
+use crate::units::Angle;
 
 /// Maximum magnitude of a magnetic variation, degrees.
 pub const MAX_VARIATION_DEG: f64 = 180.0;
@@ -111,7 +125,16 @@ pub struct Compass;
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Gyro;
 
+/// Grid north of a map projection.
+///
+/// Differs from true north by the meridian convergence at the point, which
+/// only the projection knows; conversion takes that angle explicitly.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct Grid;
+
 impl sealed::Sealed for True {}
+impl sealed::Sealed for Grid {}
 impl sealed::Sealed for Magnetic {}
 impl sealed::Sealed for Compass {}
 impl sealed::Sealed for Gyro {}
@@ -119,6 +142,12 @@ impl sealed::Sealed for Gyro {}
 impl Frame for True {
     const NAME: &'static str = "true";
     const SUFFIX: char = 'T';
+}
+
+/// Suffix `R` (gRid): `G` is taken by gyro.
+impl Frame for Grid {
+    const NAME: &'static str = "grid";
+    const SUFFIX: char = 'R';
 }
 
 impl Frame for Magnetic {
@@ -150,6 +179,10 @@ pub struct Direction<F: Frame> {
 pub type TrueCourse = Direction<True>;
 /// Bearing, true. Alias of [`TrueCourse`].
 pub type TrueBearing = Direction<True>;
+/// Course or bearing, grid.
+pub type GridCourse = Direction<Grid>;
+/// Bearing, grid. Alias of [`GridCourse`].
+pub type GridBearing = Direction<Grid>;
 /// Course or bearing, magnetic.
 pub type MagneticCourse = Direction<Magnetic>;
 /// Bearing, magnetic. Alias of [`MagneticCourse`].
@@ -286,6 +319,27 @@ impl<F: Frame> Direction<F> {
     #[must_use]
     pub const fn relabel<G: Frame>(self) -> Direction<G> {
         Direction::from_wrapped(self.degrees)
+    }
+}
+
+impl Direction<True> {
+    /// Grid direction, given the meridian convergence at the point.
+    ///
+    /// `convergence` is the angle from true north to grid north, clockwise
+    /// positive: grid = true − convergence.
+    #[must_use]
+    pub fn to_grid(self, convergence: Angle) -> Direction<Grid> {
+        Direction::from_degrees_wrapped(self.degrees - convergence.degrees())
+    }
+}
+
+impl Direction<Grid> {
+    /// True direction, given the meridian convergence at the point.
+    ///
+    /// Inverse of [`Direction::to_grid`]: true = grid + convergence.
+    #[must_use]
+    pub fn to_true(self, convergence: Angle) -> Direction<True> {
+        Direction::from_degrees_wrapped(self.degrees + convergence.degrees())
     }
 }
 
@@ -863,5 +917,18 @@ mod tests {
             MagneticCourse::from(CardinalPoint::NW),
             Direction::from(CardinalPoint::NW)
         );
+    }
+
+    #[test]
+    fn grid_north_lies_the_convergence_clockwise_of_true_north() {
+        // East of the central meridian in the northern hemisphere, grid north
+        // points east of true north: a true course of 090° is less on the grid.
+        let convergence = Angle::from_degrees(1.5).unwrap();
+        let grid = TrueCourse::new(90.0).unwrap().to_grid(convergence);
+        assert!((grid.degrees() - 88.5).abs() < 1e-12);
+        assert_eq!(format!("{grid}"), "088.5°R");
+        let wrapped = TrueCourse::new(1.0).unwrap().to_grid(convergence);
+        assert!((wrapped.degrees() - 359.5).abs() < 1e-12);
+        assert!((wrapped.to_true(convergence).degrees() - 1.0).abs() < 1e-12);
     }
 }

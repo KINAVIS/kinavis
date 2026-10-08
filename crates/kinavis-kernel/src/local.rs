@@ -1,7 +1,8 @@
 //! Local Cartesian frames and vectors typed by frame and unit.
 //!
 //! Near a point, positions and velocities are naturally expressed in a local
-//! Cartesian frame — NED, ENU, or the vessel's forward-right-down. Mixing
+//! Cartesian frame — NED, ENU, the vessel's forward-right-down, or the
+//! forward-left-up body frame of ROS (REP-103). Mixing
 //! frames is the classic sign error; adding a velocity to a displacement the
 //! classic unit error.
 //!
@@ -19,9 +20,23 @@
 //! let _ = ned + enu; // mismatched types: `Ned` is not `Enu`
 //! ```
 //!
+//! The vessel's forward-right-down [`Body`] and the robot's forward-left-up
+//! [`Flu`] share the forward axis and nothing else; conversion is explicit:
+//!
+//! ```compile_fail
+//! use kinavis_kernel::local::{Body, Flu, Vector3};
+//! use kinavis_kernel::Distance;
+//!
+//! let body: Vector3<Body, Distance> = Vector3::new(Distance::ZERO, Distance::ZERO, Distance::ZERO);
+//! let flu: Vector3<Flu, Distance> = Vector3::new(Distance::ZERO, Distance::ZERO, Distance::ZERO);
+//! let _ = body + flu; // mismatched types: `Body` is not `Flu`; use `to_flu`
+//! ```
+//!
 //! A [`LocalFrame`] is a NED frame anchored at a point: it converts a
 //! [`GeodeticPoint`] to a NED displacement from its origin and back, via
-//! [`EcefPoint`] on a named [`Ellipsoid`].
+//! [`EcefPoint`] on a named [`Ellipsoid`]. [`Kinematics3`] pairs a position
+//! and a velocity in one frame: the input of three-dimensional closest-approach
+//! and separation computations.
 //!
 //! ```rust
 //! use kinavis_kernel::geodesy::{Ellipsoid, GeodeticPoint, Height};
@@ -53,12 +68,13 @@
 use core::fmt;
 use core::marker::PhantomData;
 use core::ops::{Add, Div, Mul, Neg, Sub};
+use core::time::Duration;
 
 use crate::angle::TrueCourse;
 use crate::error::Result;
 use crate::geodesy::{EcefPoint, Ellipsoid, GeodeticPoint};
 use crate::math;
-use crate::units::{Distance, Speed};
+use crate::units::{Acceleration, Distance, Speed};
 
 mod sealed {
     pub trait Sealed {}
@@ -98,9 +114,18 @@ pub struct Enu;
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Body;
 
+/// Forward, left, up: the body frame of ROS (REP-103).
+///
+/// Same axes as [`Body`] with the second and third reversed; robot software
+/// and its sensor drivers report in this frame.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct Flu;
+
 impl sealed::Sealed for Ned {}
 impl sealed::Sealed for Enu {}
 impl sealed::Sealed for Body {}
+impl sealed::Sealed for Flu {}
 
 impl VectorFrame for Ned {
     const NAME: &'static str = "NED";
@@ -117,9 +142,15 @@ impl VectorFrame for Body {
     const AXES: [&'static str; 3] = ["forward", "right", "down"];
 }
 
+impl VectorFrame for Flu {
+    const NAME: &'static str = "FLU";
+    const AXES: [&'static str; 3] = ["forward", "left", "up"];
+}
+
 /// Quantity carried by each [`Vector3`] component.
 ///
-/// Sealed: [`Distance`] and [`Speed`] only. Arithmetic is done in SI (m, m/s).
+/// Sealed: [`Distance`], [`Speed`] and [`Acceleration`] only. Arithmetic is done
+/// in SI (m, m/s, m/s²).
 pub trait VectorUnit:
     sealed::Sealed
     + Copy
@@ -138,6 +169,7 @@ pub trait VectorUnit:
 
 impl sealed::Sealed for Distance {}
 impl sealed::Sealed for Speed {}
+impl sealed::Sealed for Acceleration {}
 
 impl VectorUnit for Distance {
     fn si(self) -> f64 {
@@ -156,6 +188,16 @@ impl VectorUnit for Speed {
 
     fn from_si(value: f64) -> Self {
         Self::from_metres_per_second(value).unwrap_or(Self::ZERO)
+    }
+}
+
+impl VectorUnit for Acceleration {
+    fn si(self) -> f64 {
+        self.metres_per_second_squared()
+    }
+
+    fn from_si(value: f64) -> Self {
+        Self::from_metres_per_second_squared(value).unwrap_or(Self::ZERO)
     }
 }
 
@@ -246,6 +288,20 @@ impl<U: VectorUnit> Vector3<Ned, U> {
     }
 }
 
+impl Vector3<Ned, Speed> {
+    /// Rate of climb: the up component, negative when descending.
+    #[must_use]
+    pub fn climb_rate(&self) -> Speed {
+        -self.down()
+    }
+
+    /// Rate of sink: the down component, negative when climbing.
+    #[must_use]
+    pub const fn sink_rate(&self) -> Speed {
+        self.down()
+    }
+}
+
 impl<U: VectorUnit> Vector3<Enu, U> {
     /// East component.
     #[must_use]
@@ -278,6 +334,14 @@ impl<U: VectorUnit> Vector3<Enu, U> {
     }
 }
 
+impl Vector3<Enu, Speed> {
+    /// Rate of climb: the up component, negative when descending.
+    #[must_use]
+    pub const fn climb_rate(&self) -> Speed {
+        self.up()
+    }
+}
+
 impl<U: VectorUnit> Vector3<Body, U> {
     /// Forward component.
     #[must_use]
@@ -295,6 +359,111 @@ impl<U: VectorUnit> Vector3<Body, U> {
     #[must_use]
     pub const fn down(&self) -> U {
         self.components[2]
+    }
+
+    /// Same vector in FLU: second and third axes reversed.
+    #[must_use]
+    pub fn to_flu(self) -> Vector3<Flu, U> {
+        Vector3::new(self.forward(), -self.right(), -self.down())
+    }
+}
+
+impl<U: VectorUnit> Vector3<Flu, U> {
+    /// Forward component.
+    #[must_use]
+    pub const fn forward(&self) -> U {
+        self.components[0]
+    }
+
+    /// Port component.
+    #[must_use]
+    pub const fn left(&self) -> U {
+        self.components[1]
+    }
+
+    /// Up component.
+    #[must_use]
+    pub const fn up(&self) -> U {
+        self.components[2]
+    }
+
+    /// Same vector in the forward-right-down [`Body`] frame.
+    #[must_use]
+    pub fn to_body(self) -> Vector3<Body, U> {
+        Vector3::new(self.forward(), -self.left(), -self.up())
+    }
+}
+
+impl<F: VectorFrame> Vector3<F, Speed> {
+    /// Displacement covered in `elapsed` at this constant velocity.
+    #[must_use]
+    pub fn displacement_in(&self, elapsed: Duration) -> Vector3<F, Distance> {
+        Vector3::new(
+            self.components[0].distance_covered(elapsed),
+            self.components[1].distance_covered(elapsed),
+            self.components[2].distance_covered(elapsed),
+        )
+    }
+}
+
+impl<F: VectorFrame> Vector3<F, Acceleration> {
+    /// Velocity gained in `elapsed` at this constant acceleration.
+    #[must_use]
+    pub fn velocity_gained(&self, elapsed: Duration) -> Vector3<F, Speed> {
+        Vector3::new(
+            self.components[0].speed_gained(elapsed),
+            self.components[1].speed_gained(elapsed),
+            self.components[2].speed_gained(elapsed),
+        )
+    }
+}
+
+/// Position and velocity in one local frame, constant-velocity model.
+///
+/// The state of a moving object as a closest-approach or separation
+/// computation sees it. Both vectors share the frame `F`, so a NED position
+/// cannot be paired with an ENU velocity.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Kinematics3<F: VectorFrame> {
+    position: Vector3<F, Distance>,
+    velocity: Vector3<F, Speed>,
+}
+
+impl<F: VectorFrame> Kinematics3<F> {
+    /// State from position and velocity.
+    #[must_use]
+    pub const fn new(position: Vector3<F, Distance>, velocity: Vector3<F, Speed>) -> Self {
+        Self { position, velocity }
+    }
+
+    /// Position.
+    #[must_use]
+    pub const fn position(&self) -> Vector3<F, Distance> {
+        self.position
+    }
+
+    /// Velocity.
+    #[must_use]
+    pub const fn velocity(&self) -> Vector3<F, Speed> {
+        self.velocity
+    }
+
+    /// State `elapsed` later: position advanced along the velocity.
+    #[must_use]
+    pub fn after(&self, elapsed: Duration) -> Self {
+        Self {
+            position: self.position + self.velocity.displacement_in(elapsed),
+            velocity: self.velocity,
+        }
+    }
+
+    /// Position and velocity of `self` relative to `other`.
+    #[must_use]
+    pub fn relative_to(&self, other: &Self) -> Self {
+        Self {
+            position: self.position - other.position,
+            velocity: self.velocity - other.velocity,
+        }
     }
 }
 
@@ -425,17 +594,11 @@ impl LocalFrame {
     /// As [`EcefPoint::from_geodetic`]: the origin height must be ellipsoidal.
     pub fn at(origin: GeodeticPoint, ellipsoid: &Ellipsoid) -> Result<Self> {
         let origin_ecef = EcefPoint::from_geodetic(origin, ellipsoid)?;
-        let (sin_lat, cos_lat) = sin_cos(origin.position().latitude().radians());
-        let (sin_lon, cos_lon) = sin_cos(origin.position().longitude().radians());
         Ok(Self {
             origin,
             origin_ecef,
             ellipsoid: *ellipsoid,
-            rotation: [
-                [-sin_lat * cos_lon, -sin_lat * sin_lon, cos_lat],
-                [-sin_lon, cos_lon, 0.0],
-                [-cos_lat * cos_lon, -cos_lat * sin_lon, -sin_lat],
-            ],
+            rotation: ned_rotation(origin),
         })
     }
 
@@ -502,6 +665,35 @@ impl LocalFrame {
         ecef.to_geodetic(&self.ellipsoid)
     }
 
+    /// Position and velocity of an object in this frame.
+    ///
+    /// `velocity` is in the NED frame at the object's own position; it is
+    /// rotated into the frame at the origin via ECEF, so distant objects keep
+    /// their true direction of motion.
+    ///
+    /// # Errors
+    ///
+    /// As [`LocalFrame::ned_of`]: the height must be ellipsoidal.
+    pub fn kinematics_of(
+        &self,
+        point: GeodeticPoint,
+        velocity: Vector3<Ned, Speed>,
+    ) -> Result<Kinematics3<Ned>> {
+        let position = self.ned_of(point)?;
+        let at_point = ned_rotation(point);
+        let local = velocity.si();
+        // Transpose of the rotation at the point: NED there → ECEF.
+        let ecef: [f64; 3] = core::array::from_fn(|axis| {
+            at_point
+                .iter()
+                .zip(local)
+                .map(|(row, value)| row.get(axis).copied().unwrap_or(0.0) * value)
+                .sum()
+        });
+        let velocity = Vector3::from_si(self.rotation.map(|row| dot(row, ecef)));
+        Ok(Kinematics3::new(position, velocity))
+    }
+
     /// Point at an ENU displacement from the origin.
     ///
     /// # Errors
@@ -510,6 +702,17 @@ impl LocalFrame {
     pub fn point_from_enu(&self, displacement: Vector3<Enu, Distance>) -> Result<GeodeticPoint> {
         self.point_from_ned(displacement.to_ned())
     }
+}
+
+/// Rows of the ECEF → NED rotation at a point.
+fn ned_rotation(point: GeodeticPoint) -> [[f64; 3]; 3] {
+    let (sin_lat, cos_lat) = sin_cos(point.position().latitude().radians());
+    let (sin_lon, cos_lon) = sin_cos(point.position().longitude().radians());
+    [
+        [-sin_lat * cos_lon, -sin_lat * sin_lon, cos_lat],
+        [-sin_lon, cos_lon, 0.0],
+        [-cos_lat * cos_lon, -cos_lat * sin_lon, -sin_lat],
+    ]
 }
 
 fn sin_cos(radians: f64) -> (f64, f64) {
@@ -636,5 +839,63 @@ mod tests {
             Height::above_mean_sea_level(Distance::ZERO),
         );
         assert!(LocalFrame::at(msl, &Ellipsoid::WGS84).is_err());
+    }
+
+    #[test]
+    fn climb_and_sink_are_the_vertical_speed_with_either_sign() {
+        let speed = |value| Speed::from_metres_per_second(value).unwrap();
+        let descending: Vector3<Ned, Speed> = Vector3::new(speed(10.0), speed(0.0), speed(2.0));
+        assert_eq!(descending.sink_rate().metres_per_second(), 2.0);
+        assert_eq!(descending.climb_rate().metres_per_second(), -2.0);
+        assert_eq!(descending.to_enu().climb_rate(), descending.climb_rate());
+        let gravity: Vector3<Ned, Acceleration> = Vector3::new(
+            Acceleration::ZERO,
+            Acceleration::ZERO,
+            Acceleration::from_g(1.0).unwrap(),
+        );
+        let fallen = gravity.velocity_gained(core::time::Duration::from_secs(2));
+        assert!((fallen.down().metres_per_second() - 19.6133).abs() < 1e-9);
+    }
+
+    #[test]
+    fn kinematics_advance_along_the_velocity_and_subtract_per_component() {
+        let speed = |value| Speed::from_metres_per_second(value).unwrap();
+        let own = Kinematics3::new(
+            Vector3::<Ned, Distance>::new(metres(0.0), metres(0.0), metres(-100.0)),
+            Vector3::new(speed(5.0), speed(0.0), speed(-1.0)),
+        );
+        let later = own.after(core::time::Duration::from_secs(10));
+        assert!((later.position().north().metres() - 50.0).abs() < 1e-9);
+        assert!((later.position().down().metres() + 110.0).abs() < 1e-9);
+        assert_eq!(later.velocity(), own.velocity());
+        let relative = later.relative_to(&own);
+        assert!((relative.position().north().metres() - 50.0).abs() < 1e-9);
+        assert!(relative.velocity().magnitude().metres_per_second() < 1e-12);
+    }
+
+    #[test]
+    fn at_the_origin_a_velocity_needs_no_rotation() {
+        let frame = LocalFrame::at(point(60.0, 25.0, 0.0), &Ellipsoid::WGS84).unwrap();
+        let speed = |value| Speed::from_metres_per_second(value).unwrap();
+        let velocity: Vector3<Ned, Speed> = Vector3::new(speed(3.0), speed(-4.0), speed(0.5));
+        let state = frame
+            .kinematics_of(point(60.0, 25.0, 0.0), velocity)
+            .unwrap();
+        assert!(state.position().magnitude().metres() < 1e-6);
+        assert!(
+            (state.velocity() - velocity)
+                .magnitude()
+                .metres_per_second()
+                < 1e-12
+        );
+        // A quarter of the way round the Earth, due north there is straight
+        // down here.
+        let far = LocalFrame::at(point(0.0, 0.0, 0.0), &Ellipsoid::WGS84).unwrap();
+        let north: Vector3<Ned, Speed> = Vector3::new(speed(1.0), speed(0.0), speed(0.0));
+        let state = far.kinematics_of(point(0.0, 90.0, 0.0), north).unwrap();
+        assert!((state.velocity().north().metres_per_second() - 1.0).abs() < 1e-12);
+        let east: Vector3<Ned, Speed> = Vector3::new(speed(0.0), speed(1.0), speed(0.0));
+        let state = far.kinematics_of(point(0.0, 90.0, 0.0), east).unwrap();
+        assert!((state.velocity().down().metres_per_second() - 1.0).abs() < 1e-12);
     }
 }
