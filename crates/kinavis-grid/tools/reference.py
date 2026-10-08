@@ -7,6 +7,11 @@ the meridian convergence and point scale (-c), to a micrometre.
 Columns: latitude longitude zone hemisphere easting northing convergence
 scale; zone 0 is UPS.
 
+mgrs_reference.txt — GeoConvert again: the MGRS reference of random points
+at precisions 0 to 11 (-m), and the centre of each referenced square read
+back (-u). Columns: latitude longitude precision reference zone hemisphere
+easting northing; zone 0 is UPS.
+
 gauss_kruger_reference.txt — PROJ through pyproj, from each datum's
 geographic CRS to its projected CRS, so no datum shift is involved: for
 random points in each preset's zone, easting and northing.
@@ -25,11 +30,31 @@ from pyproj import Transformer
 rng = random.Random(20261008)
 
 
-def geoconvert(points, *flags):
+def geoconvert(points, *flags, precision="6"):
     query = "".join(f"{lat:.12f} {lon:.12f}\n" for lat, lon in points)
-    out = subprocess.run(["GeoConvert", *flags, "-p", "6"], input=query,
+    out = subprocess.run(["GeoConvert", *flags, "-p", precision], input=query,
                          capture_output=True, text=True, check=True).stdout
     return [line.split() for line in out.splitlines()]
+
+
+def mgrs():
+    points = [(rng.uniform(-90.0, 90.0), rng.uniform(-180.0, 180.0)) for _ in range(3000)]
+    points += [(rng.uniform(72.0, 84.0), rng.uniform(0.0, 42.0)) for _ in range(200)]
+    points += [(rng.uniform(56.0, 64.0), rng.uniform(0.0, 12.0)) for _ in range(200)]
+    points += [(rng.uniform(-1.0, 1.0), rng.uniform(-180.0, 180.0)) for _ in range(200)]
+    with open("tests/data/mgrs_reference.txt", "w") as out:
+        out.write("# latitude longitude precision reference zone hemisphere easting northing\n")
+        for precision in range(0, 12):
+            chosen = points[precision::12] if precision > 5 else points[precision::6]
+            references = [row[0] for row in geoconvert(chosen, "-m", precision=str(precision - 5))]
+            query = "".join(f"{reference}\n" for reference in references)
+            centres = subprocess.run(["GeoConvert", "-u", "-p", "6"], input=query,
+                                     capture_output=True, text=True, check=True).stdout.splitlines()
+            for (lat, lon), reference, centre in zip(chosen, references, centres):
+                zone_hemisphere, easting, northing = centre.split()
+                zone = zone_hemisphere[:-1] or "0"
+                out.write(f"{lat:.12f} {lon:.12f} {precision} {reference} {zone} "
+                          f"{zone_hemisphere[-1]} {easting} {northing}\n")
 
 
 def utm_ups():
@@ -80,4 +105,5 @@ def gauss_kruger():
 
 if __name__ == "__main__":
     utm_ups()
+    mgrs()
     gauss_kruger()

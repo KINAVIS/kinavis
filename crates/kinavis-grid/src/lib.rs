@@ -1,4 +1,4 @@
-//! Map grids for the KINAVIS crates: transverse Mercator, UTM and UPS,
+//! Map grids for the KINAVIS crates: transverse Mercator, UTM and UPS, MGRS,
 //! Gauss–Krüger zones and national grids, grid north.
 //!
 //! A grid turns latitude and longitude into eastings and northings in metres
@@ -55,6 +55,7 @@ mod conformal;
 pub struct ReadmeExamples;
 
 mod crs;
+mod mgrs;
 mod tm;
 mod ups;
 mod utm;
@@ -62,6 +63,7 @@ mod utm;
 use kinavis_kernel::{Angle, Variation};
 
 pub use crs::ProjectedCrs;
+pub use mgrs::{Mgrs, MgrsSquare, MAX_MGRS_PRECISION};
 pub use tm::{Projected, TmParameters, TransverseMercator};
 pub use utm::{Gridded, Hemisphere, UtmUps, UtmZone, UPS_SCALE, UTM_SCALE};
 

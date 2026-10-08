@@ -163,6 +163,8 @@ jobs:
             target: frames
           - crate: kinavis-geoid
             target: pgm
+          - crate: kinavis-grid
+            target: mgrs
           - crate: kinavis
             target: serde_route
           - crate: kinavis

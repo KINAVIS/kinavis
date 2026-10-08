@@ -23,13 +23,17 @@ println!("{:?} {:.0} {:.0}", utm.coordinate, sk42.easting.metres(), sk42.northin
 - **Gauss–Krüger** in 6° and 3° zones on any datum, and presets: СК-42, СК-95,
   ГСК-2011, DHDN, the British National Grid. A WGS 84 fix goes through the
   kernel's datum shift first.
+- **MGRS**: references at 0 to 11 digits (100 km to 1 µm), truncating as the
+  system requires, and read back to the centre of the square; UPS lettering
+  near the poles. Lettering of WGS 84 and other modern ellipsoids.
 - **Grid north**: the convergence turns a true course into a grid course
   (`TrueCourse::to_grid`); `grid_magnetic_angle` gives the angle in a map's
   margin.
 
 Checked against GeographicLib's `GeoConvert` (UTM/UPS, convergence and scale,
-to 10 µm, 4649 points) and PROJ (every preset, to 1 mm, 10 000 points).
-`no_std`, no allocation.
+to 10 µm, 4649 points; MGRS references and squares, 5400 points) and PROJ
+(every preset, to 1 mm, 10 000 points); the MGRS reader is fuzzed. `no_std`,
+no allocation.
 
 ## Feature flags
 
