@@ -5,13 +5,18 @@
 //!
 //! 1. **Framing**: length, printable characters, start character and a
 //!    mandatory checksum. Any failure is an [`NmeaError`].
-//! 2. **Decoding** into typed records — [`Rmc`], [`Gga`], [`Gll`], [`Vtg`] —
+//! 2. **Decoding** into typed records — [`Rmc`], [`Gga`], [`Gll`], [`Vtg`],
+//!    [`Gsa`], [`Gst`], [`Gsv`], [`Grs`], [`Zda`] —
 //!    whose fields are kernel types ([`Position`], [`Speed`], [`TrueCourse`]);
 //!    out-of-domain values (latitude 95°) and implausible ones (see
 //!    [Plausibility bounds](#plausibility-bounds)) are rejected here. AIS arrives as
 //!    [`Vdm`] with the payload still armoured; decoding it is the AIS crate's
 //!    job.
-//! 3. **Translation** into a [`GnssFix`] via `TryFrom<Rmc>` or [`Gga::fix_on`].
+//! 3. **Translation** into a [`GnssFix`] via `TryFrom<Rmc>` or [`Gga::fix_on`];
+//!    [`Gst::error_ellipse`] for the receiver's own error estimate; the
+//!    satellites in view through [`GsvAssembler`], marked used by
+//!    [`Gsa::apply`] and given their residuals by [`Grs::apply`], as the
+//!    kernel's [`SatelliteSet`](kinavis_kernel::SatelliteSet).
 //!
 //! Every step works on the input in place: no copies, no allocation, no panics.
 //! The crate builds for bare-metal targets without an allocator; CI checks the
@@ -56,6 +61,11 @@
 //! | Dilution of precision | 0 to 100; 0 reads as not available |
 //! | Magnetic variation (RMC) | 180° either way; 999 and above read as not available |
 //! | Differential age (GGA) | 0 s to 9999 s |
+//! | Error ellipse, standard deviations, range RMS (GST) | 0 m to 100 000 m; above reads as not available (receivers write hundreds of kilometres before a fix) |
+//! | Ellipse orientation (GST) | −360° to 360°, read modulo 360° |
+//! | Range residual (GRS) | −1000 m to 1000 m |
+//! | Elevation, azimuth, SNR (GSV) | −90° to 90°, 0° to 360°, 0 to 99 dB-Hz |
+//! | Local zone (ZDA) | −13 h to 13 h, 0 to 59 min |
 //!
 //! [`parse`] accepts sentences up to [`MAX_ACCEPTED_BYTES`], past the
 //! standard's [`MAX_SENTENCE_BYTES`]: receivers write longer ones.
@@ -66,7 +76,7 @@
 //!
 //! # Not supported
 //!
-//! Other sentences (satellites in view, DOP breakdowns, proprietary) return
+//! Other sentences (proprietary, heading, depth, …) return
 //! [`Sentence::Unsupported`] with their address and a verified checksum, for
 //! counting or logging.
 //!
@@ -87,8 +97,10 @@ pub use encode::encode;
 pub use error::{NmeaError, TranslationError};
 pub use frame::{MAX_ACCEPTED_BYTES, MAX_SENTENCE_BYTES};
 pub use sentence::{
-    Address, Channel, Date, Gga, Gll, Mode, Payload, Rmc, Sentence, Status, Talker, TimeOfDay, Vdm,
-    Vtg, MAX_FRAGMENTS, MAX_PAYLOAD_CHARS,
+    Address, Channel, Date, Dimension, Gga, Gll, Grs, Gsa, Gst, Gsv, GsvAssembler, GsvError,
+    GsvProgress, GsvSatellite, LocalZone, Mode, Payload, Rmc, Selection, Sentence, Status, Talker,
+    TimeOfDay, Vdm, Vtg, Zda, MAX_FRAGMENTS, MAX_GSA_SATELLITES, MAX_GSV_SATELLITES,
+    MAX_GSV_TALKERS, MAX_PAYLOAD_CHARS,
 };
 
 /// Parses one sentence.

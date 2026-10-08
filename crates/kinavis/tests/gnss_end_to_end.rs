@@ -28,7 +28,7 @@ const LOG: &str = include_str!("fixtures/gnss_log.nmea");
 #[derive(Debug, Default)]
 struct Tally {
     unreadable: usize,
-    unsupported: usize,
+    not_a_fix: usize,
     untranslatable: usize,
     accepted: usize,
     rejected: usize,
@@ -76,8 +76,9 @@ fn a_recorded_log_produces_the_expected_events_and_snapshots() {
                 }
                 Err(other) => panic!("unexpected translation error {other} on {line}"),
             },
-            Sentence::Unsupported { .. } => {
-                tally.unsupported += 1;
+            // Satellites in view: read, but not a fix.
+            Sentence::Gsv(_) => {
+                tally.not_a_fix += 1;
                 continue;
             }
             other => panic!("unexpected sentence {other:?}"),
@@ -105,7 +106,7 @@ fn a_recorded_log_produces_the_expected_events_and_snapshots() {
     }
 
     assert_eq!(tally.unreadable, 2, "the garbage line and the bad checksum");
-    assert_eq!(tally.unsupported, 1, "the GSV");
+    assert_eq!(tally.not_a_fix, 1, "the GSV");
     assert_eq!(tally.untranslatable, 1, "the RMC with no position");
     assert_eq!(tally.accepted, 7);
     assert_eq!(tally.rejected, 1, "the sixty-mile jump");

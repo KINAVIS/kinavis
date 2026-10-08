@@ -129,7 +129,7 @@ dependencies = [
 
 [[package]]
 name = "kinavis-nmea0183"
-version = "0.1.1"
+version = "0.2.0"
 dependencies = [
  "kinavis-kernel",
  "proptest",

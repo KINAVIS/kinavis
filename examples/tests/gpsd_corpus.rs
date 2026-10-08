@@ -24,7 +24,7 @@ use std::path::{Path, PathBuf};
 
 use kinavis::{GnssFix, Instant, Utc};
 use kinavis_ais::{Assembler, Message};
-use kinavis_nmea0183::{parse, Sentence};
+use kinavis_nmea0183::{parse, GsvAssembler, GsvProgress, Sentence};
 
 const EXPECTED: &str = "tests/gpsd_corpus.expected";
 
@@ -86,6 +86,7 @@ impl Tally {
 /// and comments are skipped by that rule.
 fn read_log(bytes: &[u8], tally: &mut Tally) {
     let mut assembler = Assembler::new();
+    let mut sky: GsvAssembler = GsvAssembler::new();
     let now = Instant::<Utc>::from_unix_seconds(0);
     for line in bytes.split(|&byte| byte == b'\n') {
         let line = line.strip_suffix(b"\r").unwrap_or(line);
@@ -99,6 +100,8 @@ fn read_log(bytes: &[u8], tally: &mut Tally) {
                 Err(error) => tally.count(format!("RMC: no fix, {}", kind(&error))),
             },
             Ok(Sentence::Gga(gga)) => {
+                // A new epoch: the satellites in view start over.
+                sky.clear();
                 let fix = if gga.fix_type.is_position_fix() {
                     "position"
                 } else {
@@ -115,6 +118,35 @@ fn read_log(bytes: &[u8], tally: &mut Tally) {
                     Err(error) => tally.count(format!("AIS: refused, {}", kind(&error))),
                 },
                 Err(error) => tally.count(format!("AIS: refused, {}", kind(&error))),
+            },
+            Ok(Sentence::Gsa(gsa)) => {
+                let named = gsa.satellites().count();
+                let written = gsa.slots.iter().flatten().count();
+                let state = if named == written {
+                    "every satellite named"
+                } else {
+                    "a satellite unnamed"
+                };
+                tally.count(format!("GSA: {state}"));
+                let _ = gsa.apply(sky.satellites_mut());
+            }
+            Ok(Sentence::Gst(gst)) => {
+                let ellipse = if gst.error_ellipse().is_some() {
+                    "error ellipse"
+                } else {
+                    "no error ellipse"
+                };
+                tally.count(format!("GST: {ellipse}"));
+            }
+            Ok(Sentence::Gsv(gsv)) => match sky.push(&gsv) {
+                Ok(GsvProgress::Partial) => tally.count("GSV: line held".to_owned()),
+                Ok(GsvProgress::Complete(_)) => tally.count("GSV: report complete".to_owned()),
+                Err(error) => tally.count(format!("GSV: refused, {}", kind(&error))),
+            },
+            Ok(Sentence::Grs(_)) => tally.count("GRS".to_owned()),
+            Ok(Sentence::Zda(zda)) => match zda.instant() {
+                Ok(_) => tally.count("ZDA: instant".to_owned()),
+                Err(error) => tally.count(format!("ZDA: no instant, {}", kind(&error))),
             },
             Ok(Sentence::Unsupported { .. }) => tally.count("unsupported sentence".to_owned()),
             Ok(other) => tally.count(format!("other: {}", kind(&other))),
