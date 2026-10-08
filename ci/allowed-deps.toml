@@ -40,6 +40,9 @@ allow = ["kinavis-kernel"]
 [kinavis-ubx]
 allow = ["kinavis-kernel"]
 
+[kinavis-integrity]
+allow = ["kinavis-kernel"]
+
 [kinavis-traffic]
 # The one satellite that sits above the algorithms, not beside them: a
 # track is measured with the sailings and the relative motion.
