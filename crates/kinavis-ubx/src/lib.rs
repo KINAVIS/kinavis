@@ -30,8 +30,10 @@
 //! }
 //! ```
 //!
-//! No allocation, no panics; builds for bare-metal targets. Reading only:
-//! configuration messages are not written.
+//! 4. **Configuration**: [`config`] writes `CFG-VALSET`, `CFG-VALGET` and
+//!    `CFG-RATE` frames into a caller's buffer and reads the answer.
+//!
+//! No allocation, no panics; builds for bare-metal targets.
 //!
 //! [`GnssFix`]: kinavis_kernel::GnssFix
 //! [`SatelliteSet`]: kinavis_kernel::SatelliteSet
@@ -44,6 +46,7 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
+pub mod config;
 mod error;
 
 /// Runs the README example as a doctest.
@@ -57,6 +60,7 @@ mod message;
 pub mod nav;
 mod read;
 
+pub use config::{CfgValget, ConfigError, ConfigKey, Layers, PollLayer, TimeReference};
 pub use error::{TranslationError, UbxError};
 pub use esf::{EsfIns, EsfMeas, Measurement, Wheel};
 pub use frame::{checksum, DeframeError, Deframer, Event, Frame, SYNC_1, SYNC_2};
