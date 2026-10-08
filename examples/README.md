@@ -1,6 +1,6 @@
 # KINAVIS demonstrations
 
-Four short programs, each run on data recorded from real equipment. Nothing
+Five short programs, each run on data recorded from real equipment. Nothing
 here is simulated except where it says so.
 
 ```sh
@@ -8,6 +8,7 @@ cargo run -p kinavis-examples --example receivers
 cargo run -p kinavis-examples --example gnss_jump
 cargo run -p kinavis-examples --example traffic
 cargo run -p kinavis-examples --example course_to_steer
+cargo run -p kinavis-examples --example integrity
 ```
 
 ## `receivers` — what real receivers send
@@ -64,6 +65,30 @@ course to steer, cross-track error, distance to go, and the cross-track alarm.
 UTC       position                       COG    track    steer        off track   to go  alarm
 09:47:37  52°51.009'N 005°18.817'E   230.5°T  235.7°T  235.7°T      0.19 M Port  8.82 M  off track: 0.19 M > 0.10 M
 ```
+
+## `integrity` — a u-blox receiver checked: integrity, grids, height
+
+A NEO-M8P in Prague, UBX binary (`ublox-neo-m8p.log` from gpsd). Each epoch:
+the fix with the receiver's own accuracy; RAIM on its satellite residuals with
+the protection levels, for a single-frequency code receiver (3 m at the
+zenith); the position on UTM, MGRS and СК-42; the height above mean sea level
+by EGM96 beside the receiver's. In the third epoch a 40 m error is injected on
+the highest satellite, and RAIM finds and excludes it.
+
+```text
+2021-06-10T18:18:55.5 UTC  Autonomous, 9 satellites, ±2.52 m (receiver)
+  RAIM   consistent (test 2.07 ≤ 4.30), HPL 32.3 m, VPL 63.2 m
+  UTM    33N 459260.65 E 5553805.82 N
+  MGRS   33UVR5926053805
+  СК-42  x 5556174.43  y 3459372.79  (zone 3)
+  height 348.86 m above the ellipsoid, 303.88 m above mean sea level by EGM96, 304.59 m by the receiver
+
+  (injected: 40 m on G03)
+2021-06-10T18:18:56.0 UTC  Autonomous, 9 satellites, ±2.52 m (receiver)
+  RAIM   FAULT (test 8.24 > 4.30), excluded G03, then HPL 44.6 m
+```
+
+The receiver's own height above sea level differs from EGM96 by 0.7 m.
 
 ## Every gpsd log, in CI
 

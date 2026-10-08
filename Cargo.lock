@@ -87,8 +87,13 @@ version = "0.0.0"
 dependencies = [
  "kinavis",
  "kinavis-ais",
+ "kinavis-geoid",
+ "kinavis-grid",
+ "kinavis-integrity",
+ "kinavis-kernel",
  "kinavis-nmea0183",
  "kinavis-traffic",
+ "kinavis-ubx",
 ]
 
 [[package]]
