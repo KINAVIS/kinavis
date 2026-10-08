@@ -34,6 +34,7 @@ jobs:
       # Publishable crates in every shipped feature configuration.
       - run: cargo test -p kinavis-kernel -p kinavis -p kinavis-nmea0183 -p kinavis-traffic -p kinavis-colregs -p kinavis-alerts -p kinavis-ais -p kinavis-nmea2000 -p kinavis-ins --no-default-features --features libm
       - run: cargo test -p kinavis-geoid --no-default-features --features "libm egm96"
+      - run: cargo test -p kinavis-grid --no-default-features --features libm
       - run: cargo test -p kinavis-kernel -p kinavis --no-default-features --features "libm alloc"
       - run: cargo test -p kinavis-kernel -p kinavis --no-default-features --features "libm serde"
       # Magnetic model on `libm`, and without embedded coefficients (synthesis
@@ -75,7 +76,7 @@ jobs:
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
       - run: cargo fmt --all --check
       - run: cargo clippy --workspace --all-targets --all-features
-      - run: cargo clippy -p kinavis-kernel -p kinavis -p kinavis-nmea0183 -p kinavis-wmm -p kinavis-geoid -p kinavis-traffic -p kinavis-colregs -p kinavis-alerts -p kinavis-ais -p kinavis-nmea2000 -p kinavis-ins --all-targets --no-default-features --features libm
+      - run: cargo clippy -p kinavis-kernel -p kinavis -p kinavis-nmea0183 -p kinavis-wmm -p kinavis-geoid -p kinavis-grid -p kinavis-traffic -p kinavis-colregs -p kinavis-alerts -p kinavis-ais -p kinavis-nmea2000 -p kinavis-ins --all-targets --no-default-features --features libm
       - run: cargo clippy -p kinavis-kernel -p kinavis --all-targets --no-default-features --features "libm alloc"
       - run: cargo clippy -p kinavis-kernel -p kinavis --all-targets --no-default-features --features "libm serde"
       - run: cargo doc --workspace --no-deps --all-features
@@ -122,6 +123,7 @@ jobs:
       # alloc`, so the compiler proves the crates are `no_std` and allocator-free.
       - run: cargo build -p kinavis-kernel -p kinavis -p kinavis-nmea0183 -p kinavis-wmm -p kinavis-traffic -p kinavis-colregs -p kinavis-alerts -p kinavis-ais -p kinavis-nmea2000 -p kinavis-ins --target thumbv7em-none-eabihf --no-default-features --features "libm wmm2025"
       - run: cargo build -p kinavis-geoid --target thumbv7em-none-eabihf --no-default-features --features "libm egm96"
+      - run: cargo build -p kinavis-grid --target thumbv7em-none-eabihf --no-default-features --features libm
       - run: cargo build -p kinavis-kernel -p kinavis --target thumbv7em-none-eabihf --no-default-features --features "libm alloc"
       - run: cargo build -p kinavis-kernel -p kinavis --target thumbv7em-none-eabihf --no-default-features --features "libm serde"
 

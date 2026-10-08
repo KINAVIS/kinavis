@@ -64,6 +64,7 @@ build on top of it, each `no_std` and without an allocator:
 | [`kinavis-ais`](https://crates.io/crates/kinavis-ais) | AIS messages: position reports, static and voyage data, aids to navigation |
 | [`kinavis-wmm`](https://crates.io/crates/kinavis-wmm) | the World Magnetic Model 2025: magnetic variation at any position |
 | [`kinavis-geoid`](https://crates.io/crates/kinavis-geoid) | geoid heights from a global grid, EGM96 embedded: heights above the ellipsoid to heights above mean sea level |
+| [`kinavis-grid`](https://crates.io/crates/kinavis-grid) | map grids: transverse Mercator, UTM/UPS, Gauss–Krüger zones (СК-42, СК-95, ГСК-2011) and national grids, grid north |
 | [`kinavis-ins`](https://crates.io/crates/kinavis-ins) | a strapdown inertial navigation system with a fifteen-state error filter aided by GNSS and heading |
 | [`kinavis-traffic`](https://crates.io/crates/kinavis-traffic) | target tracking from radar and AIS, CPA and TCPA, the avoiding manoeuvre |
 | [`kinavis-colregs`](https://crates.io/crates/kinavis-colregs) | the steering and sailing rules of the COLREGs as data |

@@ -1,0 +1,34 @@
+[package]
+name = "kinavis-grid"
+description = "Map grids for the KINAVIS navigation crates: transverse Mercator, UTM/UPS, Gauss-Kruger and national grids, meridian convergence, without an allocator."
+documentation = "https://docs.rs/kinavis-grid"
+readme = "README.md"
+keywords = ["utm", "gauss-kruger", "projection", "geodesy", "no-std"]
+categories = ["science::geo", "no-std::no-alloc"]
+# Satellite crate, versioned independently of the kernel.
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+homepage.workspace = true
+license.workspace = true
+# Reference generators stay in the repository.
+include = ["src/**", "tests/**", "README.md", "LICENSE-*"]
+
+[features]
+default = ["std"]
+# Standard library floating-point maths.
+std = ["kinavis-kernel/std"]
+# Pure-Rust `libm`, for `no_std` targets.
+libm = ["kinavis-kernel/libm"]
+
+[dependencies]
+# Kernel only.
+kinavis-kernel = { workspace = true }
+
+[dev-dependencies]
+proptest = { workspace = true }
+
+[lints]
+workspace = true

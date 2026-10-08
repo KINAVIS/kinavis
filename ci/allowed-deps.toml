@@ -34,6 +34,9 @@ allow = ["kinavis-kernel"]
 [kinavis-geoid]
 allow = ["kinavis-kernel"]
 
+[kinavis-grid]
+allow = ["kinavis-kernel"]
+
 [kinavis-traffic]
 # The one satellite that sits above the algorithms, not beside them: a
 # track is measured with the sailings and the relative motion.
