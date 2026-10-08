@@ -1,0 +1,23 @@
+[package]
+name = "kinavis-geoid-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2021"
+
+# Separate workspace, built only by cargo-fuzz.
+[workspace]
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+kinavis-geoid = { path = "..", default-features = false, features = ["std"] }
+kinavis-kernel = { path = "../../kinavis-kernel", default-features = false, features = ["std"] }
+
+[[bin]]
+name = "pgm"
+path = "fuzz_targets/pgm.rs"
+test = false
+doc = false
+bench = false
