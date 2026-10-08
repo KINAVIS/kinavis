@@ -460,3 +460,38 @@ fn a_deviation_table_round_trips_bit_for_bit() {
     let again: DeviationTable = serde_json::from_str(&written).unwrap();
     assert_eq!(again, table);
 }
+
+#[test]
+fn a_separation_volume_round_trips_and_refuses_a_negative_dimension() {
+    use kinavis::relative_motion::SeparationVolume;
+    let volume = SeparationVolume::new(
+        Distance::from_metres(150.0).unwrap(),
+        Distance::from_metres(30.0).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(round_trip(volume), volume);
+    let json = serde_json::to_string(&volume).unwrap();
+    let negative = json.replacen("\"horizontal_radius\":", "\"horizontal_radius\":-", 1);
+    assert!(serde_json::from_str::<SeparationVolume>(&negative).is_err());
+}
+
+#[test]
+fn satellites_round_trip_and_refuse_impossible_numbers() {
+    use kinavis::satellite::{Constellation, SatelliteId, SatelliteView};
+    let view = SatelliteView::new(
+        SatelliteId::new(Constellation::Glonass, 7).unwrap(),
+        Some(Angle::from_degrees(35.0).unwrap()),
+        Some(TrueBearing::new(210.0).unwrap()),
+    )
+    .unwrap()
+    .with_carrier_to_noise(41.0)
+    .unwrap()
+    .used_in_fix(true);
+    assert_eq!(round_trip(view), view);
+    let json = serde_json::to_string(&view).unwrap();
+    assert!(
+        serde_json::from_str::<SatelliteView>(&json.replace("\"number\":7", "\"number\":40"))
+            .is_err()
+    );
+    assert!(serde_json::from_str::<SatelliteView>(&json.replace("35.0", "95.0")).is_err());
+}

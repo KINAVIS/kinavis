@@ -25,8 +25,11 @@
     clippy::unreadable_literal
 )]
 
+use kinavis::local::{Kinematics3, Ned, Vector3};
 use kinavis::navigation_solutions::{convert_compass_course_to_true_course, course_to_steer};
-use kinavis::relative_motion::{closest_point_of_approach, Approach, Contact, Vessel};
+use kinavis::relative_motion::{
+    closest_approach_3d, closest_point_of_approach, Approach, Approach3, Contact, Vessel,
+};
 use kinavis::sailings::{cross_track, geodesic, great_circle, rhumb_line};
 use kinavis::{
     CompassCourse, DeviationTable, Distance, InterpolationMethod, Latitude, Longitude, Position,
@@ -64,6 +67,9 @@ const EXPECTED: &[(&str, f64)] = &[
     ("cpa distance", 3.6462417517518966e0),
     ("cpa minutes", 1.6447758083983334e1),
     ("cpa bearing", 3.171151461328941e2),
+    ("3d cpa distance", 2.2912168912804927e2),
+    ("3d cpa seconds", 3.7459719947e1),
+    ("3d cpa vertical", 9.928990976510327e1),
 ];
 
 #[test]
@@ -186,6 +192,43 @@ fn measurements() -> Vec<(String, f64)> {
             record("cpa bearing", cpa.bearing.degrees());
         }
         other => panic!("the fixture must be a closing contact, not {other:?}"),
+    }
+
+    // A drone crossing above a vehicle, in a frame anchored ashore.
+    let frame = kinavis::local::LocalFrame::at(
+        kinavis::geodesy::GeodeticPoint::new(
+            at(52.37, 4.9),
+            kinavis::geodesy::Height::above_ellipsoid(Distance::ZERO),
+        ),
+        &kinavis::geodesy::Ellipsoid::WGS84,
+    )
+    .unwrap();
+    let mps = |value| Speed::from_metres_per_second(value).unwrap();
+    let vehicle = frame
+        .kinematics_of(
+            kinavis::geodesy::GeodeticPoint::new(
+                at(52.371, 4.902),
+                kinavis::geodesy::Height::above_ellipsoid(Distance::from_metres(2.0).unwrap()),
+            ),
+            Vector3::<Ned, Speed>::new(mps(3.0), mps(1.0), mps(0.0)),
+        )
+        .unwrap();
+    let drone: Kinematics3<Ned> = frame
+        .kinematics_of(
+            kinavis::geodesy::GeodeticPoint::new(
+                at(52.375, 4.91),
+                kinavis::geodesy::Height::above_ellipsoid(Distance::from_metres(120.0).unwrap()),
+            ),
+            Vector3::new(mps(-12.0), mps(-9.0), mps(0.5)),
+        )
+        .unwrap();
+    match closest_approach_3d(vehicle, drone).unwrap() {
+        Approach3::Closing(cpa) => {
+            record("3d cpa distance", cpa.distance.metres());
+            record("3d cpa seconds", cpa.time_to_go.as_secs_f64());
+            record("3d cpa vertical", cpa.vertical.metres());
+        }
+        other => panic!("the fixture must be closing, not {other:?}"),
     }
 
     out
