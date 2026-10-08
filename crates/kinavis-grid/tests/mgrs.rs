@@ -110,10 +110,10 @@ mod properties {
             let position = Position::from_degrees(latitude, longitude).expect("on Earth");
             let reference = Mgrs::from_position(position, precision).expect("a reference");
             let square: MgrsSquare = reference.as_str().parse().expect("reads back");
-            // Re-encoded in its own zone: a square of a widened Svalbard zone
-            // may have its centre in the next standard zone.
-            let (centre, _, _) = square.centre.to_position().expect("a position");
-            let again = Mgrs::from_coordinate(square.centre, centre.latitude().degrees(), precision)
+            // Re-encoded in its own zone and band: a square of a widened
+            // Svalbard zone may have its centre in the next standard zone, and
+            // one across a band edge its centre in the next band.
+            let again = Mgrs::from_coordinate(square.centre, latitude, precision)
                 .expect("a reference");
             prop_assert_eq!(again.as_str(), reference.as_str());
         }

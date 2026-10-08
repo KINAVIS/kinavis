@@ -5,3 +5,4 @@
 # It is recommended to check this file in to source control so that
 # everyone who runs the test benefits from these saved cases.
 cc 07f3e317695aaefce1d666de1dc1c2433601f2c07cc431fc5157c4940a9c0e4b # shrinks to latitude = 80.19010453108402, longitude = 20.848828310389347, precision = 1
+cc c0da914549ed6b68197a5e6be060f0bd6d46b428dff711696c6dd9988041e047 # shrinks to latitude = 40.00010518082419, longitude = 176.9899649493433, precision = 1
