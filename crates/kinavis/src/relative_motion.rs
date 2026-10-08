@@ -6,6 +6,12 @@
 //! Plane geometry: curvature is negligible over the few miles of a collision
 //! situation.
 //!
+//! In three dimensions — vehicles, robots, aircraft sharing a local NED frame
+//! — [`closest_approach_3d`] gives the CPA with its horizontal and vertical
+//! parts, and [`separation_loss`] the interval during which another object is
+//! inside a cylinder of protection around own position: the geometry of
+//! airborne detect-and-avoid, and of a vehicle in a safety corridor.
+//!
 //! # Example
 //!
 //! ```rust
@@ -42,6 +48,7 @@ use core::time::Duration;
 
 use crate::angle::{wrap180, Direction, RelativeBearing, True, TrueBearing, TrueCourse};
 use crate::error::{KernelError, NavigationError, Result};
+use crate::local::{Kinematics3, Ned, Vector3};
 use crate::math;
 use crate::units::{hours, Angle, Distance, Speed};
 
@@ -483,6 +490,331 @@ pub fn course_for_cpa(
 #[must_use]
 pub fn relative_bearing_of(own: Vessel, contact: Contact) -> RelativeBearing {
     RelativeBearing::from_degrees_wrapped(contact.bearing.degrees() - own.course.degrees())
+}
+
+/// Relative speed below which an object is treated as stationary, m/s.
+const STATIONARY_METRES_PER_SECOND: f64 = 1e-9;
+
+/// Horizontal separation below which an object is directly above or below,
+/// m: rounding of the CPA time leaves residues far smaller.
+const OVERHEAD_METRES: f64 = 1e-6;
+
+/// Closest approach in three dimensions.
+#[derive(Debug, Clone, Copy, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct Cpa3 {
+    /// Distance at CPA.
+    pub distance: Distance,
+    /// TCPA.
+    pub time_to_go: Duration,
+    /// Horizontal separation at CPA.
+    pub horizontal: Distance,
+    /// Vertical separation at CPA, positive when the other object is above.
+    pub vertical: Distance,
+    /// Position of the other object relative to own at CPA.
+    pub relative_position: Vector3<Ned, Distance>,
+    /// True bearing of the other object at CPA; `None` when directly above or
+    /// below, within a micrometre.
+    pub bearing: Option<TrueBearing>,
+}
+
+/// Range trend in three dimensions.
+///
+/// `#[non_exhaustive]`; match with a wildcard arm.
+#[non_exhaustive]
+#[derive(Debug, Clone, Copy, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub enum Approach3 {
+    /// Closing; CPA ahead.
+    Closing(Cpa3),
+    /// Opening; CPA passed.
+    Opening {
+        /// Current range, the minimum from now on.
+        current_range: Distance,
+    },
+    /// No relative motion: constant range.
+    Stationary {
+        /// Constant range.
+        range: Distance,
+    },
+}
+
+/// CPA of `other` from `own`, both at constant velocity in one NED frame.
+///
+/// With no vertical motion and both objects level it is the plane CPA of
+/// [`closest_point_of_approach`].
+///
+/// # Errors
+///
+/// [`KernelError::Unrepresentable`] if TCPA does not fit a [`Duration`].
+///
+/// # Example
+///
+/// ```rust
+/// use kinavis::local::{Kinematics3, Ned, Vector3};
+/// use kinavis::relative_motion::{closest_approach_3d, Approach3};
+/// use kinavis::{Distance, NavigationError, Speed};
+///
+/// let m = |value| Distance::from_metres(value);
+/// let mps = |value| Speed::from_metres_per_second(value);
+/// // Own vehicle at rest; a drone 1 km north at 120 m height, flying south
+/// // at 20 m/s and descending at 1 m/s.
+/// let own = Kinematics3::new(Vector3::<Ned, _>::new(m(0.0)?, m(0.0)?, m(0.0)?), Vector3::new(mps(0.0)?, mps(0.0)?, mps(0.0)?));
+/// let drone = Kinematics3::new(Vector3::new(m(1000.0)?, m(30.0)?, m(-120.0)?), Vector3::new(mps(-20.0)?, mps(0.0)?, mps(1.0)?));
+///
+/// let Approach3::Closing(cpa) = closest_approach_3d(own, drone)? else {
+///     panic!("the drone is closing");
+/// };
+/// assert_eq!(cpa.time_to_go.as_secs(), 50);
+/// assert_eq!(format!("{:.0}", cpa.horizontal.metres()), "30");
+/// assert_eq!(format!("{:.0}", cpa.vertical.metres()), "70");
+/// # Ok::<(), NavigationError>(())
+/// ```
+pub fn closest_approach_3d(own: Kinematics3<Ned>, other: Kinematics3<Ned>) -> Result<Approach3> {
+    let relative = other.relative_to(&own);
+    let position = relative.position().components().map(Distance::metres);
+    let velocity = relative
+        .velocity()
+        .components()
+        .map(Speed::metres_per_second);
+    let range = relative.position().magnitude();
+
+    let speed_squared = dot(velocity, velocity);
+    if speed_squared < STATIONARY_METRES_PER_SECOND * STATIONARY_METRES_PER_SECOND {
+        return Ok(Approach3::Stationary { range });
+    }
+    let time = -dot(position, velocity) / speed_squared;
+    if time <= 0.0 {
+        return Ok(Approach3::Opening {
+            current_range: range,
+        });
+    }
+    let time_to_go = seconds_to_duration(time)?;
+    let closest = relative.after(time_to_go).position();
+    Ok(Approach3::Closing(Cpa3 {
+        distance: closest.magnitude(),
+        time_to_go,
+        horizontal: closest.horizontal_magnitude(),
+        vertical: -closest.down(),
+        relative_position: closest,
+        bearing: if closest.horizontal_magnitude().metres() < OVERHEAD_METRES {
+            None
+        } else {
+            closest.horizontal_direction()
+        },
+    }))
+}
+
+/// Cylinder of protection around own position: a horizontal radius and a
+/// half-height above and below.
+#[derive(Debug, Clone, Copy, PartialEq)]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde::Serialize, serde::Deserialize),
+    serde(try_from = "StoredSeparationVolume", into = "StoredSeparationVolume")
+)]
+pub struct SeparationVolume {
+    horizontal_radius: Distance,
+    vertical_half_height: Distance,
+}
+
+impl SeparationVolume {
+    /// Cylinder from its radius and half-height.
+    ///
+    /// # Errors
+    ///
+    /// [`KernelError::OutOfRange`] for a negative dimension.
+    pub fn new(horizontal_radius: Distance, vertical_half_height: Distance) -> Result<Self> {
+        crate::error::ensure_range(
+            "horizontal radius",
+            horizontal_radius.metres(),
+            0.0,
+            f64::MAX,
+        )?;
+        crate::error::ensure_range(
+            "vertical half-height",
+            vertical_half_height.metres(),
+            0.0,
+            f64::MAX,
+        )?;
+        Ok(Self {
+            horizontal_radius,
+            vertical_half_height,
+        })
+    }
+
+    /// Horizontal radius.
+    #[must_use]
+    pub const fn horizontal_radius(&self) -> Distance {
+        self.horizontal_radius
+    }
+
+    /// Half-height above and below own position.
+    #[must_use]
+    pub const fn vertical_half_height(&self) -> Distance {
+        self.vertical_half_height
+    }
+}
+
+/// Serialised form; deserialisation goes through [`SeparationVolume::new`].
+#[cfg(feature = "serde")]
+#[derive(serde::Serialize, serde::Deserialize)]
+struct StoredSeparationVolume {
+    horizontal_radius: Distance,
+    vertical_half_height: Distance,
+}
+
+#[cfg(feature = "serde")]
+impl TryFrom<StoredSeparationVolume> for SeparationVolume {
+    type Error = NavigationError;
+
+    fn try_from(stored: StoredSeparationVolume) -> Result<Self> {
+        Self::new(stored.horizontal_radius, stored.vertical_half_height)
+    }
+}
+
+#[cfg(feature = "serde")]
+impl From<SeparationVolume> for StoredSeparationVolume {
+    fn from(volume: SeparationVolume) -> Self {
+        Self {
+            horizontal_radius: volume.horizontal_radius,
+            vertical_half_height: volume.vertical_half_height,
+        }
+    }
+}
+
+/// When another object is inside the separation volume, from now on.
+///
+/// `#[non_exhaustive]`; match with a wildcard arm.
+#[non_exhaustive]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub enum SeparationLoss {
+    /// Never inside at present velocities.
+    Clear,
+    /// Inside from `begins` (zero: already inside) until `ends`.
+    Loss {
+        /// Time until the object enters the volume.
+        begins: Duration,
+        /// Time until it leaves; `None` if it never does (no relative motion,
+        /// or motion parallel to the cylinder's axis or surface that keeps it
+        /// inside).
+        ends: Option<Duration>,
+    },
+}
+
+/// Interval during which `other` is inside `volume` centred on `own`, both at
+/// constant velocity in one NED frame.
+///
+/// The cylinder is the intersection of a horizontal disc condition, quadratic
+/// in time, and a vertical slab condition, linear in time; the loss of
+/// separation is where both hold, from now on. Boundaries count as inside.
+///
+/// # Errors
+///
+/// [`KernelError::Unrepresentable`] if a time does not fit a [`Duration`].
+///
+/// # Example
+///
+/// ```rust
+/// use kinavis::local::{Kinematics3, Ned, Vector3};
+/// use kinavis::relative_motion::{separation_loss, SeparationLoss, SeparationVolume};
+/// use kinavis::{Distance, NavigationError, Speed};
+///
+/// let m = |value| Distance::from_metres(value);
+/// let mps = |value| Speed::from_metres_per_second(value);
+/// let own = Kinematics3::new(Vector3::<Ned, _>::new(m(0.0)?, m(0.0)?, m(0.0)?), Vector3::new(mps(0.0)?, mps(0.0)?, mps(0.0)?));
+/// // Overtaking from below: same column of air, 200 m beneath, climbing at
+/// // 5 m/s through a ±100 m slab.
+/// let below = Kinematics3::new(Vector3::new(m(0.0)?, m(0.0)?, m(200.0)?), Vector3::new(mps(0.0)?, mps(0.0)?, mps(-5.0)?));
+/// let volume = SeparationVolume::new(m(150.0)?, m(100.0)?)?;
+///
+/// assert_eq!(
+///     separation_loss(own, below, volume)?,
+///     SeparationLoss::Loss { begins: core::time::Duration::from_secs(20), ends: Some(core::time::Duration::from_secs(60)) }
+/// );
+/// # Ok::<(), NavigationError>(())
+/// ```
+pub fn separation_loss(
+    own: Kinematics3<Ned>,
+    other: Kinematics3<Ned>,
+    volume: SeparationVolume,
+) -> Result<SeparationLoss> {
+    let relative = other.relative_to(&own);
+    let [north, east, down] = relative.position().components().map(Distance::metres);
+    let [north_rate, east_rate, down_rate] = relative
+        .velocity()
+        .components()
+        .map(Speed::metres_per_second);
+
+    let horizontal = disc_interval(
+        [north, east],
+        [north_rate, east_rate],
+        volume.horizontal_radius.metres(),
+    );
+    let vertical = slab_interval(down, down_rate, volume.vertical_half_height.metres());
+    let (Some((h_from, h_to)), Some((v_from, v_to))) = (horizontal, vertical) else {
+        return Ok(SeparationLoss::Clear);
+    };
+    let begins = h_from.max(v_from).max(0.0);
+    let ends = h_to.min(v_to);
+    if begins > ends {
+        return Ok(SeparationLoss::Clear);
+    }
+    Ok(SeparationLoss::Loss {
+        begins: seconds_to_duration(begins)?,
+        ends: if ends.is_finite() {
+            Some(seconds_to_duration(ends)?)
+        } else {
+            None
+        },
+    })
+}
+
+/// Times, s, when a point at `offset` moving at `rate` is within `radius` of
+/// the origin in the plane; unbounded ends are infinite.
+fn disc_interval(offset: [f64; 2], rate: [f64; 2], radius: f64) -> Option<(f64, f64)> {
+    // |offset + rate·t|² ≤ radius²: speed² t² + 2 (offset·rate) t + c ≤ 0.
+    let [north, east] = offset;
+    let [north_rate, east_rate] = rate;
+    let speed_squared = north_rate * north_rate + east_rate * east_rate;
+    let half_linear = north * north_rate + east * east_rate;
+    let constant = north * north + east * east - radius * radius;
+    if speed_squared < STATIONARY_METRES_PER_SECOND * STATIONARY_METRES_PER_SECOND {
+        return (constant <= 0.0).then_some((f64::NEG_INFINITY, f64::INFINITY));
+    }
+    let discriminant = half_linear * half_linear - speed_squared * constant;
+    if discriminant < 0.0 {
+        return None;
+    }
+    let root = math::sqrt(discriminant);
+    Some((
+        (-half_linear - root) / speed_squared,
+        (-half_linear + root) / speed_squared,
+    ))
+}
+
+/// Times, s, when a coordinate `offset` moving at `rate` is within
+/// `half_height` of zero.
+fn slab_interval(offset: f64, rate: f64, half_height: f64) -> Option<(f64, f64)> {
+    if math::abs(rate) < STATIONARY_METRES_PER_SECOND {
+        return (math::abs(offset) <= half_height).then_some((f64::NEG_INFINITY, f64::INFINITY));
+    }
+    let first = (-half_height - offset) / rate;
+    let second = (half_height - offset) / rate;
+    Some((first.min(second), first.max(second)))
+}
+
+fn seconds_to_duration(seconds: f64) -> Result<Duration> {
+    Duration::try_from_secs_f64(seconds).map_err(|_| {
+        NavigationError::Kernel(KernelError::Unrepresentable {
+            what: "the time ahead",
+        })
+    })
+}
+
+fn dot(a: [f64; 3], b: [f64; 3]) -> f64 {
+    a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
 }
 
 /// Target velocity relative to own ship, kn north and east.
