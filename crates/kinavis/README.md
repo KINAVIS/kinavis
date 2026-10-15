@@ -69,7 +69,7 @@ build on top of it, each `no_std` and without an allocator:
 | [`kinavis-ubx`](https://crates.io/crates/kinavis-ubx) | the u-blox UBX protocol: fixes with the receiver's accuracy and RTK status, satellites with residuals, dual-antenna heading, inertial and wheel measurements |
 | [`kinavis-integrity`](https://crates.io/crates/kinavis-integrity) | GNSS integrity: RAIM fault detection and exclusion, horizontal and vertical protection levels |
 | [`kinavis-agri`](https://crates.io/crates/kinavis-agri) | field guidance: a low-distortion field plane, AB lines, curves and pivot circles, parallel passes, tilt compensation, pure pursuit and Stanley pass trackers |
-| [`kinavis-ins`](https://crates.io/crates/kinavis-ins) | a strapdown inertial navigation system with a fifteen-state error filter aided by GNSS and heading |
+| [`kinavis-ins`](https://crates.io/crates/kinavis-ins) | a strapdown inertial navigation system with a fifteen-state error filter aided by GNSS, heading, wheel speed and the non-holonomic constraint |
 | [`kinavis-traffic`](https://crates.io/crates/kinavis-traffic) | target tracking from radar and AIS, CPA and TCPA, the avoiding manoeuvre |
 | [`kinavis-colregs`](https://crates.io/crates/kinavis-colregs) | the steering and sailing rules of the COLREGs as data |
 | [`kinavis-alerts`](https://crates.io/crates/kinavis-alerts) | bridge alert management: alarms, warnings and cautions, with acknowledgement |

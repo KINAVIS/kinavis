@@ -10,10 +10,17 @@ an IMU and a 15-state error-state Kalman filter.
   errors estimated from GNSS position or velocity, heading, or zero-velocity
   updates, and fed back into the mechanisation. Outputs position with error
   ellipse, velocity, roll/pitch/yaw with sigmas; no covariance matrix.
+- On land: the fix of an antenna at a lever arm (a mast leaning with the
+  machine corrects the tilt), the wheel speed with a calibrated odometer
+  scale, the non-holonomic constraint (no sideways or vertical body
+  velocity), and the heading of a two-antenna baseline with its length
+  checked.
 - `InsMotion` — the INS as a process model for the six-state estimator in
   `kinavis`.
 - No allocation, no panics. Filter consistency verified by Monte Carlo tests:
-  NEES and NIS within χ² intervals.
+  NEES and NIS within χ² intervals, at sea and for a tractor in a field with
+  RTK, U-turns and a 30 s loss of GNSS carried by the wheels (7 cm of drift,
+  against 1.7 m without them).
 
 ```rust
 use core::time::Duration;
