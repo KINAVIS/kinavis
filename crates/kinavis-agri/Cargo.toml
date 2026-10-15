@@ -1,0 +1,36 @@
+[package]
+name = "kinavis-agri"
+description = "Field guidance for the KINAVIS navigation crates: a low-distortion field plane, AB lines, curves and pivot circles, parallel passes and tilt compensation, without an allocator."
+documentation = "https://docs.rs/kinavis-agri"
+readme = "README.md"
+keywords = ["agriculture", "guidance", "ab-line", "precision-farming", "no-std"]
+categories = ["science::geo", "no-std::no-alloc", "algorithms"]
+# Satellite crate, versioned independently of the kernel.
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+homepage.workspace = true
+license.workspace = true
+# Reference generators stay in the repository.
+include = ["src/**", "tests/**", "README.md", "LICENSE-*"]
+
+[features]
+default = ["std"]
+# Standard library floating-point maths.
+std = ["kinavis-kernel/std", "kinavis/std", "kinavis-grid/std"]
+# Pure-Rust `libm`, for `no_std` targets.
+libm = ["kinavis-kernel/libm", "kinavis/libm", "kinavis-grid/libm"]
+
+[dependencies]
+kinavis-kernel = { workspace = true }
+# Planar regions (`kinavis::region`), first released in 1.2.
+kinavis = { version = "1.2.0", path = "../kinavis", default-features = false }
+kinavis-grid = { version = "0.1.0", path = "../kinavis-grid", default-features = false }
+
+[dev-dependencies]
+proptest = { workspace = true }
+
+[lints]
+workspace = true
