@@ -360,6 +360,17 @@ impl<P: ProcessModel> Estimator<P> {
         &self.process
     }
 
+    /// Process model, to feed it inputs between steps (a wheel angle, a
+    /// commanded speed).
+    ///
+    /// A late observation re-propagates the history with the model as it is
+    /// then, so a model with inputs keeps them by time and answers for the
+    /// step it is asked about, not with the latest input.
+    #[must_use]
+    pub fn process_mut(&mut self) -> &mut P {
+        &mut self.process
+    }
+
     /// Overall integrity as of the current belief.
     ///
     /// Re-evaluated only on steps; an unstepped estimator does not notice time
