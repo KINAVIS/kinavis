@@ -8,6 +8,7 @@
 //! ```
 
 mod arch;
+mod mavlink;
 
 use std::process::ExitCode;
 
@@ -25,6 +26,16 @@ fn main() -> ExitCode {
                 ExitCode::FAILURE
             }
         },
+        Some("mavlink") => {
+            let args: Vec<String> = std::env::args().skip(2).collect();
+            match mavlink::run(&args) {
+                Ok(()) => ExitCode::SUCCESS,
+                Err(failure) => {
+                    eprintln!("{failure}");
+                    ExitCode::FAILURE
+                }
+            }
+        }
         Some(unknown) => {
             eprintln!("unknown task: {unknown}\n");
             help();
@@ -36,5 +47,7 @@ fn main() -> ExitCode {
 fn help() {
     eprintln!("Tasks:");
     eprintln!("  arch   check the dependency rule against ci/allowed-deps.toml");
+    eprintln!("  mavlink DEFINITIONS.xml [LABEL]");
+    eprintln!("         generate the messages of kinavis-mavlink from a MAVLink dialect");
     eprintln!("  help   this message");
 }

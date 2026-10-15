@@ -36,7 +36,7 @@ const INNER_CRATES: &[&str] = &["kinavis-kernel"];
 
 /// Check finding or failure.
 #[derive(Debug)]
-pub(crate) struct Failure(String);
+pub(crate) struct Failure(pub(crate) String);
 
 impl fmt::Display for Failure {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

@@ -27,11 +27,13 @@ from pathlib import Path
 
 TARGET = "thumbv7em-none-eabihf"
 FEATURES = "libm"
+# Crates whose optional code is shipped too: built with it switched on.
+FEATURES_OF = {"kinavis-mavlink": "libm signing"}
 # Release build, and release with overflow checks: an unchecked wrapping `+`
 # is a panic path in the latter and a silently wrong value in the former.
 PROFILES = ["release", "strict"]
 # All shipped crates, innermost first.
-PACKAGES = ["kinavis-kernel", "kinavis", "kinavis-nmea0183", "kinavis-wmm", "kinavis-geoid", "kinavis-grid", "kinavis-ubx", "kinavis-integrity", "kinavis-agri", "kinavis-traffic", "kinavis-colregs", "kinavis-alerts", "kinavis-ais", "kinavis-j1939", "kinavis-nmea2000", "kinavis-isobus", "kinavis-ins"]
+PACKAGES = ["kinavis-kernel", "kinavis", "kinavis-nmea0183", "kinavis-wmm", "kinavis-geoid", "kinavis-grid", "kinavis-ubx", "kinavis-integrity", "kinavis-agri", "kinavis-traffic", "kinavis-colregs", "kinavis-alerts", "kinavis-ais", "kinavis-j1939", "kinavis-nmea2000", "kinavis-isobus", "kinavis-mavlink", "kinavis-ins"]
 PANIC = re.compile(r"core9panicking")
 DEFINE = re.compile(r"^define\b.*?@(\S+?)\(")
 
@@ -50,7 +52,7 @@ def emit_ir(package: str, profile: str) -> Path:
         [
             "cargo", "rustc", "--package", package,
             "--profile", profile, "--target", TARGET,
-            "--no-default-features", "--features", FEATURES, "--lib",
+            "--no-default-features", "--features", FEATURES_OF.get(package, FEATURES), "--lib",
             "--", "--emit=llvm-ir", "-C", "debuginfo=0", "-C", "codegen-units=1",
         ],
         check=True,

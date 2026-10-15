@@ -14,6 +14,7 @@ exclude = [
     "crates/kinavis-ubx/fuzz",
     "crates/kinavis-j1939/fuzz",
     "crates/kinavis-isobus/fuzz",
+    "crates/kinavis-mavlink/fuzz",
 ]
 
 [workspace.package]

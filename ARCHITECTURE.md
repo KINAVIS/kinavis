@@ -57,7 +57,8 @@ L1  crates/kinavis                   sailings, deviation, navigation_solutions,
                                      schedule, clearance, composite, anchor, mob
         ↑
 L2  adapters                         crates/kinavis-nmea0183, crates/kinavis-j1939,
-                                     crates/kinavis-wmm, crates/kinavis-ins —
+                                     crates/kinavis-mavlink, crates/kinavis-wmm,
+                                     crates/kinavis-ins —
                                      separate crates, depending on the kernel only;
                                      crates/kinavis-ais — over the kernel and nmea0183
                                      (the message arrives inside a sentence);
