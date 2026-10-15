@@ -25,4 +25,7 @@ fn planes_lines_and_trackers_stay_small() {
     within::<kinavis_agri::PassPattern>(16);
     within::<kinavis_agri::PassTracker>(48);
     within::<kinavis_agri::PassView>(48);
+    within::<kinavis_agri::VehicleGeometry>(64);
+    within::<kinavis_agri::PurePursuit>(40);
+    within::<kinavis_agri::Stanley>(16);
 }

@@ -96,7 +96,7 @@ pub fn locate<L: ReferenceLine>(
 ) -> PassView {
     let station = line.station(point);
     let pass = pattern.pass_at_metres(station.offset.metres());
-    view(line, pattern, point, heading, pass)
+    locate_pass(line, pattern, point, heading, pass)
 }
 
 /// Thresholds of a [`PassTracker`].
@@ -286,7 +286,7 @@ impl PassTracker {
                 }
             }
         };
-        let mut view = view(line, pattern, point, heading, pass);
+        let mut view = locate_pass(line, pattern, point, heading, pass);
         view.to_end = to_end(point, view.course);
 
         let error = math::abs(view.cross_track.metres());
@@ -325,7 +325,8 @@ impl PassTracker {
     }
 }
 
-fn view<L: ReferenceLine>(
+/// Place on a given pass.
+pub(crate) fn locate_pass<L: ReferenceLine>(
     line: &L,
     pattern: &PassPattern,
     point: PlanarPoint,

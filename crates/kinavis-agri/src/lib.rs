@@ -1,5 +1,6 @@
 //! Field guidance for the KINAVIS crates: a low-distortion field plane, AB
-//! lines, curves and pivot circles, parallel passes, tilt compensation.
+//! lines, curves and pivot circles, parallel passes, tilt compensation, pass
+//! trackers that command a wheel angle.
 //!
 //! A field is worked in a plane. [`FieldPlane::centred_at`] lays one through
 //! the field — a transverse Mercator with its central meridian and origin on
@@ -47,6 +48,15 @@
 //! # Ok::<(), kinavis_agri::AgriError>(())
 //! ```
 //!
+//! # Steering
+//!
+//! [`PurePursuit`] and [`Stanley`] turn a pass and a machine state into a
+//! wheel angle ([`SteeringCommand`]) for the machine's [`VehicleGeometry`];
+//! both are [`PathTracker`]s, so code that steers is written once.
+//! [`bicycle_step`] is the kinematic model they are tested against. The
+//! output is a command, not control: the actuator and its safety are the
+//! caller's.
+//!
 //! # Accuracy
 //!
 //! The centred plane's scale error is about `x²/2R²` at `x` from its origin:
@@ -83,6 +93,7 @@ mod field;
 mod line;
 mod pass;
 mod plane;
+mod steering;
 mod tilt;
 mod tracker;
 
@@ -92,5 +103,8 @@ pub use field::Field;
 pub use line::{AbLine, PivotLine, ReferenceLine, Station, MIN_LINE_METRES};
 pub use pass::{PassIndex, PassPattern, MAX_PASS};
 pub use plane::{FieldPlane, FIELD_RADIUS_METRES};
+pub use steering::{
+    bicycle_step, PathTracker, PurePursuit, Stanley, SteeringCommand, VehicleGeometry, VehicleState,
+};
 pub use tilt::{ground_point, LeverArm, Tilt};
 pub use tracker::{locate, AgriEvent, PassTracker, PassView, TrackerConfig, MAX_AGRI_EVENTS};

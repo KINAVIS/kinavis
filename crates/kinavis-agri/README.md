@@ -2,7 +2,7 @@
 
 Field guidance for the [KINAVIS](https://github.com/KINAVIS/kinavis) crates:
 a low-distortion field plane, AB lines, curves and pivot circles, parallel
-passes and tilt compensation.
+passes, tilt compensation and pass trackers.
 
 ```rust
 use kinavis::region::PlanarPoint;
@@ -36,13 +36,21 @@ println!("{} at {:.2} m from the line", passes.pass_at(offset), offset.metres())
   end of pass approaching, off line.
 - **Tilt compensation**: the control point under a rolled and pitched
   antenna, with a full lever arm.
+- **Steering**: pure pursuit (look-ahead growing with speed, an optional
+  intercept angle for distant passes) and Stanley, both behind one
+  `PathTracker` role; wheelbase, wheel-angle and steering-rate limits; the
+  kinematic bicycle. The output is a wheel angle to command, not control of
+  the machine.
 
 Checked: plane distances against the geodesic and against straight lines
 between points at the field's height (ECEF); the centred plane against PROJ
 (pyproj); cross-track for lines and circles against closed formulas; pass
 numbers at the boundaries between passes; parallel curves against the exact
 offset they stand for, and offsetting there and back; a pass on a side slope
-with a noisy roll sensor. `no_std`, no allocation.
+with a noisy roll sensor; both trackers step for step against PythonRobotics,
+and in closed loop on straight and curved passes and a change of pass at
+working speeds; the same results with `std` and `libm`. `no_std`, no
+allocation.
 
 ## Feature flags
 

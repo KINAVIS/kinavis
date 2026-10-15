@@ -1,6 +1,6 @@
 [package]
 name = "kinavis-agri"
-description = "Field guidance for the KINAVIS navigation crates: a low-distortion field plane, AB lines, curves and pivot circles, parallel passes and tilt compensation, without an allocator."
+description = "Field guidance for the KINAVIS navigation crates: a low-distortion field plane, AB lines, curves and pivot circles, parallel passes, tilt compensation and pass trackers, without an allocator."
 documentation = "https://docs.rs/kinavis-agri"
 readme = "README.md"
 keywords = ["agriculture", "guidance", "ab-line", "precision-farming", "no-std"]
