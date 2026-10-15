@@ -57,6 +57,14 @@
 //! output is a command, not control: the actuator and its safety are the
 //! caller's.
 //!
+//! # Turns
+//!
+//! [`TurnPath`] is the shortest path of bounded curvature between two poses
+//! (Dubins): a U-turn onto a pass two turning radii away or more, an omega
+//! turn onto a closer one. It is a [`ReferenceLine`], so the same trackers
+//! drive it, and [`TurnPath::first_conflict`] checks it against the field
+//! for a machine of a given width.
+//!
 //! Without an inertial system, [`BicycleMotion`] is the process model of the
 //! `kinavis` estimator for a steered machine: fed the wheel angles, it holds
 //! a turn through a gap in the fixes.
@@ -101,6 +109,7 @@ mod plane;
 mod steering;
 mod tilt;
 mod tracker;
+mod turn;
 
 pub use bicycle::BicycleMotion;
 pub use curve::{ContourRecorder, CurveLine, MIN_SEGMENT_METRES};
@@ -114,3 +123,4 @@ pub use steering::{
 };
 pub use tilt::{ground_point, LeverArm, Tilt};
 pub use tracker::{locate, AgriEvent, PassTracker, PassView, TrackerConfig, MAX_AGRI_EVENTS};
+pub use turn::{DubinsWord, Pose, Steer, TurnPath, TurnPiece};

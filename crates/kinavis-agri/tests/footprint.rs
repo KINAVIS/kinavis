@@ -28,6 +28,7 @@ fn planes_lines_and_trackers_stay_small() {
     within::<kinavis_agri::VehicleGeometry>(64);
     within::<kinavis_agri::PurePursuit>(40);
     within::<kinavis_agri::Stanley>(16);
+    within::<kinavis_agri::TurnPath>(384);
     // 24 bytes an angle: instant and curvature.
     within::<kinavis_agri::BicycleMotion<64>>(1600);
 }
