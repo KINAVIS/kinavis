@@ -198,6 +198,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "kinavis-ros2"
+version = "0.1.0"
+dependencies = [
+ "kinavis-kernel",
+ "proptest",
+]
+
+[[package]]
 name = "kinavis-signalk"
 version = "0.1.0"
 dependencies = [
