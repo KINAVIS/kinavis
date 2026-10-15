@@ -23,7 +23,7 @@ source), reassembles fast packets and decodes the group into kernel types:
 The CAN controller, driver and address claim are the caller's.
 
 ```rust
-use kinavis_nmea2000::{Assembler, CanId, Frame, Message, Pgn};
+use kinavis_nmea2000::{Assembler, CanId, Frame, Message, Nmea2000Pgn, Pgn};
 use kinavis_kernel::{Instant, Utc};
 
 let mut assembler = Assembler::new();

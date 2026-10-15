@@ -12,8 +12,8 @@ use kinavis_kernel::gnss::FixType;
 use kinavis_kernel::time::{Civil, Instant, Utc};
 use kinavis_kernel::KernelError;
 use kinavis_nmea2000::{
-    Assembler, CanId, Frame, GnssSystem, Integrity, Message, Nmea2000Error, Payload, Pgn,
-    Referenced, StationClass,
+    Assembler, CanId, Frame, GnssSystem, Integrity, Message, Nmea2000Error, Nmea2000Pgn, Payload,
+    Pgn, Referenced, StationClass,
 };
 
 fn now() -> Instant<Utc> {

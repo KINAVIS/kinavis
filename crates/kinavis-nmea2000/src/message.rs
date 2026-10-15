@@ -4,7 +4,7 @@ use crate::ais::AisPositionReport;
 use crate::error::Nmea2000Error;
 use crate::frame::Payload;
 use crate::gnss::GnssPosition;
-use crate::id::Pgn;
+use crate::id::{Nmea2000Pgn, Pgn};
 use crate::navigation::{CourseAndSpeed, PositionRapidUpdate, VesselHeading, WaterDepth};
 
 /// Decoded parameter group.

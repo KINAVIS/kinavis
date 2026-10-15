@@ -1,0 +1,37 @@
+[package]
+name = "kinavis-j1939"
+description = "SAE J1939 and ISO 11783-3 for the KINAVIS navigation crates: the 29-bit identifier, NAME and address claim, the transport protocols, without an allocator."
+documentation = "https://docs.rs/kinavis-j1939"
+readme = "README.md"
+keywords = ["j1939", "can", "isobus", "transport-protocol", "no-std"]
+categories = ["embedded", "no-std::no-alloc", "parser-implementations"]
+# Satellite crate, versioned independently of the kernel.
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+homepage.workspace = true
+license.workspace = true
+include = ["src/**", "tests/**", "README.md", "LICENSE-*"]
+
+[features]
+default = ["std"]
+# Standard library maths in the kernel.
+std = ["kinavis-kernel/std"]
+# Pure-Rust `libm`, for `no_std` targets.
+libm = ["kinavis-kernel/libm"]
+# Serialisation of the value types.
+serde = ["dep:serde", "kinavis-kernel/serde"]
+
+[dependencies]
+# Kernel only, for time; the CAN bus is the caller's.
+kinavis-kernel = { workspace = true }
+serde = { workspace = true, optional = true }
+
+[dev-dependencies]
+proptest = { workspace = true }
+serde_json = { workspace = true }
+
+[lints]
+workspace = true

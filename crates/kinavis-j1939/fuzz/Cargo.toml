@@ -1,0 +1,23 @@
+[package]
+name = "kinavis-j1939-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2021"
+
+# Separate workspace, built only by cargo-fuzz.
+[workspace]
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+kinavis-j1939 = { path = "..", default-features = false, features = ["std"] }
+kinavis-kernel = { path = "../../kinavis-kernel", default-features = false, features = ["std"] }
+
+[[bin]]
+name = "transport"
+path = "fuzz_targets/transport.rs"
+test = false
+doc = false
+bench = false

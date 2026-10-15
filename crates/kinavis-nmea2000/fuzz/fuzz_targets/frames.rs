@@ -12,7 +12,7 @@ use core::time::Duration;
 use libfuzzer_sys::fuzz_target;
 
 use kinavis_kernel::time::{Instant, Utc};
-use kinavis_nmea2000::{Assembler, CanId, Frame, Message, Transport, MAX_ASSEMBLIES};
+use kinavis_nmea2000::{Nmea2000Pgn, Assembler, CanId, Frame, Message, Transport, MAX_ASSEMBLIES};
 
 fuzz_target!(|data: &[u8]| {
     let mut assembler = Assembler::new();

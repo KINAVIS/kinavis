@@ -31,7 +31,7 @@ input. Reporters are credited in the advisory unless they prefer not to be.
 | Crate | Supported |
 |---|---|
 | `kinavis`, `kinavis-kernel` | the latest `1.x` |
-| `kinavis-nmea0183`, `kinavis-ais`, `kinavis-nmea2000`, `kinavis-ins`, `kinavis-traffic`, `kinavis-colregs`, `kinavis-alerts`, `kinavis-wmm`, `kinavis-geoid`, `kinavis-grid`, `kinavis-ubx`, `kinavis-integrity`, `kinavis-agri` | the latest `0.x` |
+| `kinavis-nmea0183`, `kinavis-ais`, `kinavis-nmea2000`, `kinavis-ins`, `kinavis-traffic`, `kinavis-colregs`, `kinavis-alerts`, `kinavis-wmm`, `kinavis-geoid`, `kinavis-grid`, `kinavis-ubx`, `kinavis-integrity`, `kinavis-agri`, `kinavis-j1939`, `kinavis-isobus` | the latest `0.x` |
 
 Older releases are not patched; upgrade. The minimum supported Rust version
 is stated in `Cargo.toml` (`rust-version`) and tested in CI.
@@ -111,7 +111,8 @@ panics or hangs on a malformed sentence has failed the watch.
 
 | Threat | Where it enters | What answers it | Checked by |
 |---|---|---|---|
-| Malformed or oversized sentence, frame or payload crashes the parser | nmea0183 `parse`, nmea2000 `decode`/`frames`, ais `decode`/`assemble` | Fixed-size buffers with published bounds (`MAX_SENTENCE_BYTES`, `MAX_PAYLOAD_BYTES`, `MAX_MESSAGE_BITS`); every length and index checked; errors carry at most `EXCERPT_BYTES` of the input | `cargo fuzz` targets for each entry point (job `fuzz-smoke`), `tests/robustness.rs`, `ci/panic-free.py` on the bare-metal IR |
+| Malformed or oversized sentence, frame or payload crashes the parser | nmea0183 `parse`, nmea2000 `decode`/`frames`, ais `decode`/`assemble`, j1939 `transport`, isobus `decode` | Fixed-size buffers with published bounds (`MAX_SENTENCE_BYTES`, `MAX_PAYLOAD_BYTES`, `MAX_MESSAGE_BITS`); every length and index checked; errors carry at most `EXCERPT_BYTES` of the input | `cargo fuzz` targets for each entry point (job `fuzz-smoke`), `tests/robustness.rs`, `ci/panic-free.py` on the bare-metal IR |
+| A node on the CAN bus floods transport announcements or claims addresses it should not | j1939 `TransportReceiver`, `ExtendedReceiver`, `AddressClaimer` | Sessions are fixed slots: an announcement with no free slot or beyond the receiver's capacity is refused with an abort, and silent sessions expire (T1, T2); a monitor never transmits. An address claim is settled by NAME as ISO 11783-5 prescribes, so a node claiming with a lower NAME takes the address: the bus has no authentication, and this crate cannot add it | `tests/transport.rs`, `tests/claim.rs`, `cargo fuzz` target `transport` |
 | A malformed or truncated geoid grid reads out of bounds or yields a wrong height | geoid `GridGeoid::from_pgm` | Header checked line by line with a bounded line length; dimensions bounded (`2^20`), width even, height odd; the sample bytes must equal width × height × 2 exactly; every sample read is a checked slice | fuzz target `pgm` (reads, then evaluates both interpolations), unit tests of refused headers, `ci/panic-free.py` |
 | A malformed MGRS reference is misread or reads out of bounds | grid `MgrsSquare::from_str` | Zone of at most two digits within 1–60, letters looked up in their sets, an even number of digits up to 22, the square checked against its band; fixed-size output, no allocation | fuzz target `mgrs`, refused-input tests, `ci/panic-free.py` |
 | A malformed UBX stream overruns a buffer, misreads a frame or hangs | ubx `Deframer::push`, `Message::decode` | Fixed payload capacity, a longer frame refused before any byte is stored; Fletcher checksum before decoding; every message length checked against its type, repeated blocks against their count; little-endian reads through checked slices | fuzz target `deframe`, `tests/frames.rs` (noise, corruption, oversize), `ci/panic-free.py` |

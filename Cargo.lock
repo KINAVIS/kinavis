@@ -141,6 +141,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "kinavis-isobus"
+version = "0.1.0"
+dependencies = [
+ "kinavis-j1939",
+ "kinavis-kernel",
+ "proptest",
+ "serde",
+]
+
+[[package]]
+name = "kinavis-j1939"
+version = "0.1.0"
+dependencies = [
+ "kinavis-kernel",
+ "proptest",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "kinavis-kernel"
 version = "1.1.0"
 dependencies = [
@@ -160,8 +180,9 @@ dependencies = [
 
 [[package]]
 name = "kinavis-nmea2000"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
+ "kinavis-j1939",
  "kinavis-kernel",
  "proptest",
  "serde",

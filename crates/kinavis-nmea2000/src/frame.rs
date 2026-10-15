@@ -3,55 +3,13 @@
 use core::fmt;
 
 use crate::error::Nmea2000Error;
-use crate::id::{CanId, Pgn};
+use crate::id::Pgn;
 
 /// Maximum fast-packet payload: 6 bytes in the first frame + 7 in each of up to
 /// 31 more.
 pub const MAX_PAYLOAD_BYTES: usize = 223;
 
-/// CAN frame: identifier and up to 8 data bytes.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-#[cfg_attr(
-    feature = "serde",
-    derive(serde::Serialize, serde::Deserialize),
-    serde(try_from = "StoredFrame", into = "StoredFrame")
-)]
-pub struct Frame {
-    /// 29-bit identifier.
-    pub id: CanId,
-    data: [u8; 8],
-    len: u8,
-}
-
-impl Frame {
-    /// Frame from identifier and data.
-    ///
-    /// # Errors
-    ///
-    /// [`Nmea2000Error::BadFrameLength`] for more than 8 bytes.
-    pub fn new(id: CanId, data: &[u8]) -> Result<Self, Nmea2000Error> {
-        if data.len() > 8 {
-            return Err(Nmea2000Error::BadFrameLength { len: data.len() });
-        }
-        let mut bytes = [0xFF; 8];
-        for (slot, byte) in bytes.iter_mut().zip(data) {
-            *slot = *byte;
-        }
-        // At most 8.
-        #[allow(clippy::cast_possible_truncation)]
-        Ok(Self {
-            id,
-            data: bytes,
-            len: data.len() as u8,
-        })
-    }
-
-    /// Data bytes.
-    #[must_use]
-    pub fn data(&self) -> &[u8] {
-        self.data.get(..usize::from(self.len)).unwrap_or(&[])
-    }
-}
+pub use kinavis_j1939::Frame;
 
 /// Complete PGN payload (single frame or reassembled fast packet), fixed
 /// capacity.
@@ -64,43 +22,6 @@ pub struct Payload {
     source: u8,
     bytes: [u8; MAX_PAYLOAD_BYTES],
     len: usize,
-}
-
-/// Serialised frame: identifier, 8 bytes and the length. Deserialisation goes
-/// through [`Frame::new`], so a log cannot carry an invalid length.
-#[cfg(feature = "serde")]
-#[derive(serde::Serialize, serde::Deserialize)]
-struct StoredFrame {
-    id: CanId,
-    data: [u8; 8],
-    len: u8,
-}
-
-#[cfg(feature = "serde")]
-impl TryFrom<StoredFrame> for Frame {
-    type Error = Nmea2000Error;
-
-    fn try_from(stored: StoredFrame) -> Result<Self, Nmea2000Error> {
-        let data =
-            stored
-                .data
-                .get(..usize::from(stored.len))
-                .ok_or(Nmea2000Error::BadFrameLength {
-                    len: usize::from(stored.len),
-                })?;
-        Self::new(stored.id, data)
-    }
-}
-
-#[cfg(feature = "serde")]
-impl From<Frame> for StoredFrame {
-    fn from(frame: Frame) -> Self {
-        Self {
-            id: frame.id,
-            data: frame.data,
-            len: frame.len,
-        }
-    }
 }
 
 impl Payload {
@@ -263,6 +184,7 @@ mod tests {
     #![allow(clippy::unwrap_used)]
 
     use super::*;
+    use crate::id::CanId;
 
     fn payload(bytes: &[u8]) -> Payload {
         Payload::from_bytes(Pgn::new(1), 0, bytes).unwrap()
@@ -306,7 +228,7 @@ mod tests {
         assert!(Frame::new(id, &[0; 8]).is_ok());
         assert_eq!(
             Frame::new(id, &[0; 9]),
-            Err(Nmea2000Error::BadFrameLength { len: 9 })
+            Err(kinavis_j1939::J1939Error::BadFrameLength { len: 9 })
         );
         assert_eq!(Frame::new(id, &[1, 2]).unwrap().data(), &[1, 2]);
 

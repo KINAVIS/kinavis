@@ -38,6 +38,7 @@ jobs:
       - run: cargo test -p kinavis-ubx --no-default-features --features libm
       - run: cargo test -p kinavis-integrity --no-default-features --features libm
       - run: cargo test -p kinavis-agri --no-default-features --features libm
+      - run: cargo test -p kinavis-j1939 -p kinavis-isobus --no-default-features --features libm
       - run: cargo test -p kinavis-kernel -p kinavis --no-default-features --features "libm alloc"
       - run: cargo test -p kinavis-kernel -p kinavis --no-default-features --features "libm serde"
       # Magnetic model on `libm`, and without embedded coefficients (synthesis
@@ -79,7 +80,7 @@ jobs:
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
       - run: cargo fmt --all --check
       - run: cargo clippy --workspace --all-targets --all-features
-      - run: cargo clippy -p kinavis-kernel -p kinavis -p kinavis-nmea0183 -p kinavis-wmm -p kinavis-geoid -p kinavis-grid -p kinavis-ubx -p kinavis-integrity -p kinavis-agri -p kinavis-traffic -p kinavis-colregs -p kinavis-alerts -p kinavis-ais -p kinavis-nmea2000 -p kinavis-ins --all-targets --no-default-features --features libm
+      - run: cargo clippy -p kinavis-kernel -p kinavis -p kinavis-nmea0183 -p kinavis-wmm -p kinavis-geoid -p kinavis-grid -p kinavis-ubx -p kinavis-integrity -p kinavis-agri -p kinavis-j1939 -p kinavis-isobus -p kinavis-traffic -p kinavis-colregs -p kinavis-alerts -p kinavis-ais -p kinavis-nmea2000 -p kinavis-ins --all-targets --no-default-features --features libm
       - run: cargo clippy -p kinavis-kernel -p kinavis --all-targets --no-default-features --features "libm alloc"
       - run: cargo clippy -p kinavis-kernel -p kinavis --all-targets --no-default-features --features "libm serde"
       - run: cargo doc --workspace --no-deps --all-features
@@ -91,6 +92,9 @@ jobs:
       # gpsd's regression logs at a pinned commit, so the tally changes only
       # with a change here.
       GPSD_COMMIT: 43362cd24a43864ceac7b8c70f29be2053dd7b0d
+      # A tractor's bus (TractorHacking/PolyCAN, candump, no licence: fetched,
+      # never committed), at a pinned commit.
+      POLYCAN_COMMIT: f4f43254b738c7e318ebe7c9f7dbbddb846d0dc1
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # v1
@@ -115,6 +119,19 @@ jobs:
       - run: cargo test -p kinavis-ubx --test reference -- --ignored
         env:
           GPSD_LOGS: ${{ runner.temp }}/gpsd/test/daemon
+      - name: Fetch the PolyCAN logs
+        run: |
+          git init -q "$RUNNER_TEMP/polycan"
+          cd "$RUNNER_TEMP/polycan"
+          git remote add origin https://github.com/TractorHacking/PolyCAN.git
+          git sparse-checkout set CANable/logs/oldLogs
+          git fetch -q --depth 1 origin "$POLYCAN_COMMIT"
+          git checkout -q FETCH_HEAD
+      # Every frame read as a bus monitor reads it, against the tally in
+      # crates/kinavis-isobus/tests/polycan.expected.
+      - run: cargo test -p kinavis-isobus --test polycan -- --ignored
+        env:
+          POLYCAN_LOGS: ${{ runner.temp }}/polycan/CANable/logs/oldLogs
 
   no-std:
     name: Build for a bare-metal target
@@ -134,6 +151,7 @@ jobs:
       - run: cargo build -p kinavis-ubx --target thumbv7em-none-eabihf --no-default-features --features libm
       - run: cargo build -p kinavis-integrity --target thumbv7em-none-eabihf --no-default-features --features libm
       - run: cargo build -p kinavis-agri --target thumbv7em-none-eabihf --no-default-features --features libm
+      - run: cargo build -p kinavis-j1939 -p kinavis-isobus --target thumbv7em-none-eabihf --no-default-features --features libm
       - run: cargo build -p kinavis-kernel -p kinavis --target thumbv7em-none-eabihf --no-default-features --features "libm alloc"
       - run: cargo build -p kinavis-kernel -p kinavis --target thumbv7em-none-eabihf --no-default-features --features "libm serde"
 
@@ -171,6 +189,10 @@ jobs:
             target: decode
           - crate: kinavis-nmea2000
             target: frames
+          - crate: kinavis-j1939
+            target: transport
+          - crate: kinavis-isobus
+            target: decode
           - crate: kinavis-geoid
             target: pgm
           - crate: kinavis-grid

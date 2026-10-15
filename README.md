@@ -73,7 +73,9 @@ graph BT
     kernel[kinavis-kernel]
     kinavis --> kernel
     nmea0183[kinavis-nmea0183] --> kernel
-    nmea2000[kinavis-nmea2000] --> kernel
+    j1939[kinavis-j1939] --> kernel
+    nmea2000[kinavis-nmea2000] --> j1939
+    isobus[kinavis-isobus] --> j1939
     wmm[kinavis-wmm] --> kernel
     ins[kinavis-ins] --> kernel
     ais[kinavis-ais] --> nmea0183
@@ -92,8 +94,10 @@ graph BT
 | [`kinavis-kernel`](https://docs.rs/kinavis-kernel) | the value types: frame-tagged angles, units, positions, time scales, geodesy and chart datums, events and the error type |
 | [`kinavis`](https://docs.rs/kinavis) | the algorithms: compass and deviation, the sailings, dead reckoning, fixes, routes and guidance, tides, the sun, a Kalman filter over the navigation state |
 | [`kinavis-nmea0183`](https://docs.rs/kinavis-nmea0183) | NMEA 0183 sentences, parsed and written |
-| [`kinavis-nmea2000`](https://docs.rs/kinavis-nmea2000) | NMEA 2000 parameter groups out of CAN frames, fast-packet included |
+| [`kinavis-nmea2000`](https://docs.rs/kinavis-nmea2000) | NMEA 2000 parameter groups out of CAN frames, fast-packet included, on the J1939 frame |
 | [`kinavis-ais`](https://docs.rs/kinavis-ais) | AIS messages: position reports, static and voyage data, aids to navigation |
+| [`kinavis-j1939`](https://docs.rs/kinavis-j1939) | SAE J1939 and ISO 11783-3: the 29-bit identifier, NAME and address claim, the transport protocols (BAM, RTS/CTS, ETP) |
+| [`kinavis-isobus`](https://docs.rs/kinavis-isobus) | ISOBUS (ISO 11783-7): wheel-based, ground-based and machine selected speed, the guidance messages |
 | [`kinavis-wmm`](https://docs.rs/kinavis-wmm) | the World Magnetic Model 2025: magnetic variation at any position |
 | [`kinavis-geoid`](https://docs.rs/kinavis-geoid) | geoid heights from a global grid, EGM96 embedded: heights above the ellipsoid to heights above mean sea level |
 | [`kinavis-grid`](https://docs.rs/kinavis-grid) | map grids: transverse Mercator, UTM/UPS, MGRS, Gauss–Krüger zones (СК-42, СК-95, ГСК-2011) and national grids, grid north |

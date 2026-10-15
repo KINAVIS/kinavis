@@ -6,7 +6,7 @@ readme = "README.md"
 keywords = ["nmea2000", "n2k", "can", "marine", "no-std"]
 categories = ["parser-implementations", "science", "no-std::no-alloc"]
 # Satellite crate, versioned independently of the kernel.
-version = "0.1.0"
+version = "0.2.0"
 authors.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -17,15 +17,17 @@ license.workspace = true
 [features]
 default = ["std"]
 # Standard library floating-point maths.
-std = ["kinavis-kernel/std"]
+std = ["kinavis-kernel/std", "kinavis-j1939/std"]
 # Pure-Rust `libm`, for `no_std` targets.
-libm = ["kinavis-kernel/libm"]
+libm = ["kinavis-kernel/libm", "kinavis-j1939/libm"]
 # Serialisation of the value types.
-serde = ["dep:serde", "kinavis-kernel/serde"]
+serde = ["dep:serde", "kinavis-kernel/serde", "kinavis-j1939/serde"]
 
 [dependencies]
-# Kernel only; the CAN bus is the caller's.
+# The kernel, and the J1939 identifier and frame NMEA 2000 is built on; the
+# CAN bus is the caller's.
 kinavis-kernel = { workspace = true }
+kinavis-j1939 = { version = "0.1.0", path = "../kinavis-j1939", default-features = false }
 serde = { workspace = true, optional = true }
 
 [dev-dependencies]
