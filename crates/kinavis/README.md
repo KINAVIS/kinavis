@@ -46,6 +46,7 @@ the type, and every quantity its unit.
 | Position | `sailings`, `dead_reckoning`, `fix`, `gnss_intake` |
 | Passage | `route`, `turning`, `guidance`, `schedule`, `composite`, `clearance` |
 | Surroundings | `relative_motion`, `anchor`, `mob`, `conditions`, `tides`, `sun` |
+| Planar regions | `region` |
 | Estimation | `estimator`, `observations`, `state`, `snapshot` |
 
 The [guide](https://docs.rs/kinavis/latest/kinavis/guide/index.html) walks

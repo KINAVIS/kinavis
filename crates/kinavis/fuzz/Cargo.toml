@@ -29,3 +29,10 @@ path = "fuzz_targets/serde_table.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "serde_region"
+path = "fuzz_targets/serde_region.rs"
+test = false
+doc = false
+bench = false
