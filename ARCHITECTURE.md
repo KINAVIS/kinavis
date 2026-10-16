@@ -62,7 +62,11 @@ L2  adapters                         crates/kinavis-nmea0183, crates/kinavis-nme
                                      crates/kinavis-ais — over the kernel and nmea0183
                                      (the message arrives inside a sentence)
 L2' built on the algorithms          crates/kinavis-traffic, crates/kinavis-colregs
-                                     — depend on the kernel and kinavis
+                                     — depend on the kernel and kinavis;
+                                     crates/kinavis-agri — also on kinavis-grid, and
+                                     on the neutral modules of kinavis only, never
+                                     the marine ones (`cargo xtask arch` checks the
+                                     paths)
 L3  where the contexts meet          crates/kinavis-alerts — over the kernel, kinavis
                                      and traffic: the one place where the events of
                                      every context meet
@@ -200,5 +204,7 @@ from the public API.
 - `cargo xtask arch` (the CI job `arch`) — the dependency rule as data: every
   edge of the graph from `cargo metadata`, external crates included, must be
   listed in [`ci/allowed-deps.toml`](ci/allowed-deps.toml), and no line
-  of kernel code names `kinavis::`. A new dependency means editing that file
-  first, then `Cargo.toml`.
+  of kernel code names `kinavis::`. A crate with `kinavis-modules` in its
+  table (the land crates) names `kinavis` only through those modules; the
+  crate root's re-exports are refused too. A new dependency means editing
+  that file first, then `Cargo.toml`.

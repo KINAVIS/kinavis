@@ -85,3 +85,10 @@ allow = []
 # targets, and the assessment and the ruling go back as deltas. JSON needs
 # `serde_json`; nothing below depends on this crate.
 allow = ["kinavis-kernel", "kinavis", "kinavis-traffic", "kinavis-colregs", "serde", "serde_json"]
+
+[kinavis-agri]
+# Field guidance: planar regions from the algorithms and the field plane
+# from the grids. A land crate (ADR-0014): it names `kinavis` only through
+# the neutral modules below, never the marine ones or the crate root.
+allow = ["kinavis-kernel", "kinavis", "kinavis-grid"]
+kinavis-modules = ["region", "error", "event", "sailings", "fix", "gnss_intake", "dead_reckoning", "estimator", "observations", "route", "guidance", "turning", "schedule", "sun", "relative_motion"]
