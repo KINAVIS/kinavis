@@ -1,0 +1,33 @@
+[package]
+name = "kinavis-integrity"
+description = "GNSS integrity for the KINAVIS navigation crates: RAIM fault detection and exclusion, horizontal and vertical protection levels, without an allocator."
+documentation = "https://docs.rs/kinavis-integrity"
+readme = "README.md"
+keywords = ["raim", "integrity", "gnss", "protection-level", "no-std"]
+categories = ["science::geo", "no-std::no-alloc", "mathematics"]
+# Satellite crate, versioned independently of the kernel.
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+homepage.workspace = true
+license.workspace = true
+include = ["src/**", "tests/**", "README.md", "LICENSE-*"]
+
+[features]
+default = ["std"]
+# Standard library floating-point maths.
+std = ["kinavis-kernel/std"]
+# Pure-Rust `libm`, for `no_std` targets.
+libm = ["kinavis-kernel/libm"]
+
+[dependencies]
+# Kernel only.
+kinavis-kernel = { workspace = true }
+
+[dev-dependencies]
+proptest = { workspace = true }
+
+[lints]
+workspace = true
