@@ -10,7 +10,9 @@
 //! 2. **Error-state filter**, [`InsFilter`]: 15 states (position, velocity,
 //!    attitude, gyro bias, accelerometer bias errors) estimated from available
 //!    aiding — GNSS position or velocity, heading, zero-velocity — and fed back
-//!    into the mechanisation to bound drift.
+//!    into the mechanisation to bound drift. On land also: an antenna at a
+//!    lever arm, the wheel speed, the non-holonomic constraint and the heading
+//!    of a two-antenna baseline.
 //!
 //! Outputs are kernel types: [`Position`], a [`Vector3`] of [`Speed`], an
 //! [`Attitude`] with yaw as [`TrueCourse`], plus sigmas and the error ellipse;
@@ -20,8 +22,9 @@
 //!
 //! No allocation, no panics on any input; builds for bare-metal targets and CI
 //! checks the strict-profile build for panic paths. Filter consistency is
-//! verified by Monte Carlo tests: over a passage with a turn, NEES (15 states)
-//! and NIS of position fixes fall within their χ² intervals.
+//! verified by Monte Carlo tests: over a passage with a turn, and for a
+//! tractor in a field with U-turns and a loss of GNSS, NEES (15 states) and
+//! NIS of position fixes fall within their χ² intervals.
 //!
 //! ```rust
 //! use core::time::Duration;

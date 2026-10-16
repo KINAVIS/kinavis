@@ -19,7 +19,7 @@ use kinavis_kernel::angle::{wrap180, TrueCourse};
 use kinavis_kernel::error::{ensure_range, KernelError, Result};
 use kinavis_kernel::estimation::GatingPolicy;
 use kinavis_kernel::geodesy::GeodeticPoint;
-use kinavis_kernel::local::{Ned, Vector3};
+use kinavis_kernel::local::{Body, Ned, Vector3};
 use kinavis_kernel::math;
 use kinavis_kernel::matrix::Matrix;
 use kinavis_kernel::position::Position;
@@ -534,6 +534,258 @@ impl InsFilter {
         self.update(innovation, &jacobian, &Matrix::diagonal([variance]), gate)
     }
 
+    /// Horizontal fix of an antenna at a lever arm from the IMU, in body axes
+    /// (forward, right, down).
+    ///
+    /// The fix is `p + C·l`; its Jacobian carries the attitude through
+    /// `[(C·l)×]`, so a mast leaning with the machine corrects the tilt
+    /// instead of pulling the position.
+    ///
+    /// # Errors
+    ///
+    /// As [`InsFilter::update_position`].
+    pub fn update_antenna_position(
+        &mut self,
+        position: Position,
+        lever: Vector3<Body, Distance>,
+        sigma: Distance,
+        gate: GatingPolicy,
+    ) -> Result<InsUpdate> {
+        ensure_range("position sigma", sigma.metres(), f64::MIN_POSITIVE, 1e6)?;
+        let arm = self.lever_in_navigation(lever);
+        let height = self.nominal.point()?.height();
+        let measured = self
+            .nominal
+            .frame()
+            .ned_of(GeodeticPoint::new(position, height))?;
+        let (estimated, _, _, _) = self.nominal.raw();
+        let innovation = [
+            measured.north().metres() - (estimated[0] + arm[0]),
+            measured.east().metres() - (estimated[1] + arm[1]),
+        ];
+        let jacobian = antenna_jacobian::<2>(arm);
+        let variance = sigma.metres() * sigma.metres();
+        self.update(
+            innovation,
+            &jacobian,
+            &Matrix::diagonal([variance, variance]),
+            gate,
+        )
+    }
+
+    /// Fix with height of an antenna at a lever arm from the IMU, in body
+    /// axes.
+    ///
+    /// # Errors
+    ///
+    /// As [`InsFilter::update_point`].
+    pub fn update_antenna_point(
+        &mut self,
+        point: GeodeticPoint,
+        lever: Vector3<Body, Distance>,
+        horizontal_sigma: Distance,
+        vertical_sigma: Distance,
+        gate: GatingPolicy,
+    ) -> Result<InsUpdate> {
+        ensure_range(
+            "position sigma",
+            horizontal_sigma.metres(),
+            f64::MIN_POSITIVE,
+            1e6,
+        )?;
+        ensure_range(
+            "height sigma",
+            vertical_sigma.metres(),
+            f64::MIN_POSITIVE,
+            1e6,
+        )?;
+        let arm = self.lever_in_navigation(lever);
+        let measured = self.nominal.frame().ned_of(point)?;
+        let (estimated, _, _, _) = self.nominal.raw();
+        let innovation = [
+            measured.north().metres() - (estimated[0] + arm[0]),
+            measured.east().metres() - (estimated[1] + arm[1]),
+            measured.down().metres() - (estimated[2] + arm[2]),
+        ];
+        let jacobian = antenna_jacobian::<3>(arm);
+        let horizontal = horizontal_sigma.metres() * horizontal_sigma.metres();
+        let vertical = vertical_sigma.metres() * vertical_sigma.metres();
+        self.update(
+            innovation,
+            &jacobian,
+            &Matrix::diagonal([horizontal, horizontal, vertical]),
+            gate,
+        )
+    }
+
+    /// Wheel speed: the forward speed of the body, read by an odometer whose
+    /// scale (measured over true speed, 1 for a calibrated wheel) is given.
+    ///
+    /// The scale is the caller's calibration, not a state of the filter
+    /// (ADR-0021): a 1 % error at 2.5 m/s is 2.5 cm/s, 0.75 m over 30 s
+    /// without GNSS. The odometer is taken to read at the IMU; mount the IMU
+    /// over the rear axle, or the turn adds `ω × l` across the reading.
+    ///
+    /// # Errors
+    ///
+    /// [`KernelError::OutOfRange`] for a non-positive sigma or a scale outside
+    /// 0.5…2; as [`InsFilter::update_position`] otherwise.
+    pub fn update_wheel_speed(
+        &mut self,
+        speed: Speed,
+        scale: f64,
+        sigma: Speed,
+        gate: GatingPolicy,
+    ) -> Result<InsUpdate> {
+        ensure_range(
+            "wheel speed sigma",
+            sigma.metres_per_second(),
+            f64::MIN_POSITIVE,
+            1e3,
+        )?;
+        ensure_range("odometer scale", scale, 0.5, 2.0)?;
+        let (rows, body) = self.body_velocity_rows();
+        let [forward, _, _] = rows;
+        let innovation = [speed.metres_per_second() / scale - body[0]];
+        let jacobian = Matrix::<1, ERROR_STATE_DIM>::from_fn(|_, column| {
+            forward.get(column).copied().unwrap_or(0.0)
+        });
+        let variance = square(sigma.metres_per_second() / scale);
+        self.update(innovation, &jacobian, &Matrix::diagonal([variance]), gate)
+    }
+
+    /// Non-holonomic constraint: no sideways and no vertical velocity of the
+    /// body.
+    ///
+    /// Holds only while the wheels are on the ground and do not slide, for an
+    /// IMU on the axle the machine turns about (the rear axle of a tractor):
+    /// the caller decides when that is so. `sigma_lateral` and
+    /// `sigma_vertical` bound the residual motion: skidding, suspension,
+    /// a lever arm left out.
+    ///
+    /// # Errors
+    ///
+    /// As [`InsFilter::update_position`].
+    pub fn update_non_holonomic(
+        &mut self,
+        sigma_lateral: Speed,
+        sigma_vertical: Speed,
+        gate: GatingPolicy,
+    ) -> Result<InsUpdate> {
+        for (name, sigma) in [
+            ("lateral sigma", sigma_lateral),
+            ("vertical sigma", sigma_vertical),
+        ] {
+            ensure_range(name, sigma.metres_per_second(), f64::MIN_POSITIVE, 1e3)?;
+        }
+        let (rows, body) = self.body_velocity_rows();
+        let [_, right, down] = rows;
+        let innovation = [-body[1], -body[2]];
+        let jacobian = Matrix::<2, ERROR_STATE_DIM>::from_fn(|row, column| {
+            let source = if row == 0 { &right } else { &down };
+            source.get(column).copied().unwrap_or(0.0)
+        });
+        self.update(
+            innovation,
+            &jacobian,
+            &Matrix::diagonal([
+                square(sigma_lateral.metres_per_second()),
+                square(sigma_vertical.metres_per_second()),
+            ]),
+            gate,
+        )
+    }
+
+    /// Heading of a two-antenna baseline, in body axes from the first antenna
+    /// to the second, with its measured length checked first.
+    ///
+    /// A baseline whose measured length differs from `baseline`'s by more
+    /// than `tolerance` is refused (`accepted: false`, `nis` infinite): a
+    /// wrongly resolved ambiguity shows in the length before it shows in the
+    /// heading. The heading is that of `C·b`, so a baseline across the
+    /// machine or tilted with it is handled exactly.
+    ///
+    /// # Errors
+    ///
+    /// [`KernelError::OutOfRange`] for a baseline shorter than 10 cm in
+    /// plan, a negative tolerance or a non-positive sigma.
+    pub fn update_baseline_heading(
+        &mut self,
+        heading: TrueCourse,
+        measured_length: Distance,
+        baseline: Vector3<Body, Distance>,
+        tolerance: Distance,
+        sigma: Angle,
+        gate: GatingPolicy,
+    ) -> Result<InsUpdate> {
+        ensure_range(
+            "heading sigma",
+            sigma.radians(),
+            f64::MIN_POSITIVE,
+            core::f64::consts::PI,
+        )?;
+        ensure_range("baseline tolerance", tolerance.metres(), 0.0, 1e3)?;
+        let body = [
+            baseline.forward().metres(),
+            baseline.right().metres(),
+            baseline.down().metres(),
+        ];
+        let length = math::sqrt(body.iter().map(|v| v * v).sum());
+        if math::abs(measured_length.metres() - length) > tolerance.metres() {
+            return Ok(InsUpdate {
+                nis: f64::INFINITY,
+                dof: 1,
+                accepted: false,
+            });
+        }
+        let direction = self.nominal.quaternion().rotate(body);
+        let [north, east, _] = direction;
+        let plan = north * north + east * east;
+        ensure_range(
+            "baseline length in plan, metres",
+            math::sqrt(plan),
+            0.1,
+            1e3,
+        )?;
+        let estimated = math::to_degrees(math::atan2(east, north));
+        let innovation = [math::to_radians(wrap180(heading.degrees() - estimated))];
+        let jacobian = baseline_jacobian(direction);
+        let variance = sigma.radians() * sigma.radians();
+        self.update(innovation, &jacobian, &Matrix::diagonal([variance]), gate)
+    }
+
+    /// Lever arm in navigation axes, `C·l`.
+    fn lever_in_navigation(&self, lever: Vector3<Body, Distance>) -> [f64; 3] {
+        self.nominal.quaternion().rotate([
+            lever.forward().metres(),
+            lever.right().metres(),
+            lever.down().metres(),
+        ])
+    }
+
+    /// Body velocity `Cᵀ v` and the Jacobian row of each component over the
+    /// error state: `Cᵀ` on the velocity error, `−Cᵀ[v×]` on the
+    /// misalignment.
+    fn body_velocity_rows(&self) -> ([[f64; ERROR_STATE_DIM]; 3], [f64; 3]) {
+        let (_, velocity, _, _) = self.nominal.raw();
+        let rotation = self.nominal.quaternion().to_matrix();
+        let body = self.nominal.quaternion().rotate_back(velocity);
+        let transposed = rotation.transpose();
+        let attitude = transposed * skew(velocity).scaled(-1.0);
+        let mut rows = [[0.0; ERROR_STATE_DIM]; 3];
+        for (axis, row) in rows.iter_mut().enumerate() {
+            for column in 0..3 {
+                if let Some(slot) = row.get_mut(VELOCITY + column) {
+                    *slot = transposed.get(axis, column).unwrap_or(0.0);
+                }
+                if let Some(slot) = row.get_mut(ATTITUDE + column) {
+                    *slot = attitude.get(axis, column).unwrap_or(0.0);
+                }
+            }
+        }
+        (rows, body)
+    }
+
     /// Corrected mechanisation state.
     #[must_use]
     pub const fn nominal(&self) -> &Strapdown {
@@ -620,5 +872,161 @@ impl InsFilter {
     #[must_use]
     pub const fn covariance(&self) -> &Matrix<ERROR_STATE_DIM, ERROR_STATE_DIM> {
         &self.covariance
+    }
+}
+
+/// Jacobian of an antenna fix `p + C·l` over the error state, first `M`
+/// navigation axes: identity on position, `[(C·l)×]` on the misalignment
+/// (`C_true l = (I − [ψ×]) C l = C l + [(C l)×] ψ`).
+fn antenna_jacobian<const M: usize>(arm: [f64; 3]) -> Matrix<M, ERROR_STATE_DIM> {
+    let cross = skew(arm);
+    Matrix::<M, ERROR_STATE_DIM>::from_fn(|row, column| {
+        if column == POSITION + row {
+            1.0
+        } else if (ATTITUDE..ATTITUDE + 3).contains(&column) {
+            cross.get(row, column - ATTITUDE).unwrap_or(0.0)
+        } else {
+            0.0
+        }
+    })
+}
+
+/// Jacobian of the heading of a baseline `d = C·b` over the error state:
+/// `δd = [d×] ψ`, `δα = (d_n δd_e − d_e δd_n) / (d_n² + d_e²)`.
+fn baseline_jacobian(direction: [f64; 3]) -> Matrix<1, ERROR_STATE_DIM> {
+    let [north, east, _] = direction;
+    let plan = north * north + east * east;
+    let cross = skew(direction);
+    Matrix::<1, ERROR_STATE_DIM>::from_fn(|_, column| {
+        if !(ATTITUDE..ATTITUDE + 3).contains(&column) {
+            return 0.0;
+        }
+        let axis = column - ATTITUDE;
+        let row_north = cross.get(0, axis).unwrap_or(0.0);
+        let row_east = cross.get(1, axis).unwrap_or(0.0);
+        (north * row_east - east * row_north) / plan
+    })
+}
+
+fn square(value: f64) -> f64 {
+    value * value
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::indexing_slicing)]
+mod tests {
+    use super::*;
+    use kinavis_kernel::geodesy::Height;
+    use kinavis_kernel::position::Position;
+
+    /// A filter rolled, pitched and turned, moving.
+    fn filter() -> InsFilter {
+        let nominal = Strapdown::new(
+            Instant::<Utc>::from_unix_seconds(1_789_000_000),
+            GeodeticPoint::new(
+                Position::from_degrees(48.0, 11.0).unwrap(),
+                Height::above_ellipsoid(Distance::from_metres(500.0).unwrap()),
+            ),
+            Vector3::<Ned, Speed>::new(
+                Speed::from_metres_per_second(1.7).unwrap(),
+                Speed::from_metres_per_second(-2.1).unwrap(),
+                Speed::from_metres_per_second(0.2).unwrap(),
+            ),
+            Quaternion::from_euler(
+                Angle::from_degrees(8.0).unwrap(),
+                Angle::from_degrees(-3.0).unwrap(),
+                TrueCourse::new(305.0).unwrap(),
+            ),
+        )
+        .unwrap();
+        InsFilter::new(nominal, ImuNoise::mems(), &InsPriors::standard())
+    }
+
+    /// The filter with an error-state correction applied.
+    fn moved(filter: &InsFilter, column: usize, step: f64) -> InsFilter {
+        let mut moved = filter.clone();
+        let mut blocks = [[0.0; 3]; 5];
+        blocks[column / 3][column % 3] = step;
+        moved
+            .nominal
+            .correct(blocks[0], blocks[1], blocks[2], blocks[3], blocks[4]);
+        moved
+    }
+
+    /// Central differences of `h` against the analytic Jacobian rows.
+    fn check<const M: usize>(
+        h: impl Fn(&InsFilter) -> [f64; M],
+        jacobian: &Matrix<M, ERROR_STATE_DIM>,
+    ) {
+        let base = filter();
+        for column in 0..ERROR_STATE_DIM {
+            let step = 1e-6;
+            let plus = h(&moved(&base, column, step));
+            let minus = h(&moved(&base, column, -step));
+            for row in 0..M {
+                let numeric = (plus[row] - minus[row]) / (2.0 * step);
+                let analytic = jacobian.get(row, column).unwrap();
+                assert!(
+                    (numeric - analytic).abs() < 1e-6 * (1.0 + analytic.abs()),
+                    "∂{row}/∂{column}: {analytic} against {numeric}"
+                );
+            }
+        }
+    }
+
+    const LEVER: [f64; 3] = [0.6, -0.3, -3.1];
+
+    #[test]
+    fn the_antenna_jacobian_is_the_derivative_of_the_antenna_position() {
+        let base = filter();
+        let arm = base.nominal.quaternion().rotate(LEVER);
+        let h = |f: &InsFilter| {
+            let (p, _, _, _) = f.nominal.raw();
+            let arm = f.nominal.quaternion().rotate(LEVER);
+            [p[0] + arm[0], p[1] + arm[1], p[2] + arm[2]]
+        };
+        check(h, &antenna_jacobian::<3>(arm));
+    }
+
+    #[test]
+    fn the_body_velocity_rows_are_the_derivative_of_the_body_velocity() {
+        let base = filter();
+        let (rows, _) = base.body_velocity_rows();
+        let jacobian = Matrix::<3, ERROR_STATE_DIM>::from_fn(|row, column| rows[row][column]);
+        let h = |f: &InsFilter| f.body_velocity_rows().1;
+        check(h, &jacobian);
+    }
+
+    #[test]
+    fn the_baseline_jacobian_is_the_derivative_of_its_heading() {
+        let baseline = [0.3, 1.4, 0.05];
+        let base = filter();
+        let jacobian = baseline_jacobian(base.nominal.quaternion().rotate(baseline));
+        let h = |f: &InsFilter| {
+            let [n, e, _] = f.nominal.quaternion().rotate(baseline);
+            [math::atan2(e, n)]
+        };
+        check(h, &jacobian);
+    }
+
+    #[test]
+    fn a_baseline_of_the_wrong_length_is_refused() {
+        let mut filter = filter();
+        let baseline = Vector3::<Body, Distance>::new(
+            Distance::from_metres(0.0).unwrap(),
+            Distance::from_metres(1.5).unwrap(),
+            Distance::ZERO,
+        );
+        let update = filter
+            .update_baseline_heading(
+                TrueCourse::new(35.0).unwrap(),
+                Distance::from_metres(1.62).unwrap(),
+                baseline,
+                Distance::from_metres(0.05).unwrap(),
+                Angle::from_degrees(0.3).unwrap(),
+                GatingPolicy::none(),
+            )
+            .unwrap();
+        assert!(!update.accepted);
     }
 }
