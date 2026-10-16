@@ -2,7 +2,7 @@
 
 use super::offset::offset_rings;
 use super::polygon::{
-    checked_offset, edges, offset_piece, offset_tolerance, segments_meet, signed_area, Polygon,
+    checked_offset, offset_piece, offset_tolerance, rings_meet, signed_area, Polygon,
 };
 use super::{Area, Containment, PlanarPoint};
 use crate::error::{KernelError, NavigationError, Result};
@@ -216,25 +216,26 @@ impl<const N: usize, const H: usize, const K: usize> Region<N, H, K> {
             }
             other => other,
         })?;
-        let keeps_clear = core::iter::once(result.outer.vertices())
-            .chain(result.holes().iter().map(Polygon::vertices))
-            .flatten()
-            .all(|vertex| {
-                self.contains(*vertex) == Containment::Inside
-                    && self.distance_to_boundary(*vertex).metres() >= metres - tolerance
-            });
-        if keeps_clear {
+        let keeps_clear = result.rings().flatten().all(|vertex| {
+            self.contains(*vertex) == Containment::Inside
+                && self.distance_to_boundary(*vertex).metres() >= metres - tolerance
+        });
+        // Vertices inside are not enough: a skeleton thrown off by rounding
+        // can span a notch of the boundary with one edge.
+        let crosses = result
+            .rings()
+            .any(|ring| self.rings().any(|own| rings_meet(ring, own)));
+        if keeps_clear && !crosses {
             Ok(result)
         } else {
             Err(NavigationError::OffsetSplits { distance: metres })
         }
     }
-}
 
-/// Whether any edge of one ring meets any edge of the other.
-fn rings_meet(a: &[PlanarPoint], b: &[PlanarPoint]) -> bool {
-    edges(a)
-        .any(|(a1, a2)| edges(b).any(|(b1, b2)| segments_meet(a1.xy(), a2.xy(), b1.xy(), b2.xy())))
+    /// Outer ring, then the holes.
+    fn rings(&self) -> impl Iterator<Item = &[PlanarPoint]> + '_ {
+        core::iter::once(self.outer.vertices()).chain(self.holes().iter().map(Polygon::vertices))
+    }
 }
 
 #[cfg(feature = "serde")]
