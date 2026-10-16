@@ -18,6 +18,11 @@ kinavis = { workspace = true, features = ["std"] }
 kinavis-nmea0183 = { workspace = true, features = ["std"] }
 kinavis-traffic = { version = "0.1.0", path = "../crates/kinavis-traffic" }
 kinavis-ais = { version = "0.1.1", path = "../crates/kinavis-ais" }
+kinavis-kernel = { workspace = true, features = ["std"] }
+kinavis-ubx = { version = "0.1.0", path = "../crates/kinavis-ubx" }
+kinavis-integrity = { version = "0.1.0", path = "../crates/kinavis-integrity" }
+kinavis-grid = { version = "0.1.0", path = "../crates/kinavis-grid" }
+kinavis-geoid = { version = "0.1.0", path = "../crates/kinavis-geoid" }
 
 [lints]
 workspace = true
