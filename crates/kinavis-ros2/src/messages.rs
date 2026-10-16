@@ -60,7 +60,8 @@ pub mod covariance_type {
     pub const KNOWN: u8 = 3;
 }
 
-/// `sensor_msgs/NavSatFix`, frame `earth` by REP-105.
+/// `sensor_msgs/NavSatFix`: its `frame_id` is the antenna's frame on the
+/// vehicle, not `earth`; position on the WGS 84 ellipsoid.
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub struct NavSatFix {
     /// Time of the fix.

@@ -17,7 +17,7 @@ use crate::messages::{
     covariance_type, nav_sat_status, GeoPoint, Imu, NavSatFix, Odometry, Quaternion, Stamp, Vector,
 };
 
-/// Frame of `NavSatFix` and the ECEF frame, REP-105.
+/// ECEF frame, REP-105.
 pub const EARTH: &str = "earth";
 /// World-fixed ENU frame of `Odometry` poses.
 pub const MAP: &str = "map";
