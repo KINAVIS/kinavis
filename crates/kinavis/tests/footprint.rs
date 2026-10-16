@@ -32,6 +32,10 @@ fn the_aggregates_stay_within_their_budgets() {
     within::<kinavis::state::NavigationState>(512);
     // Holds the last fix, error ellipse included.
     within::<kinavis::gnss_intake::GnssIntake>(352);
+    // Polygon: 16 bytes a vertex. A field of 64 vertices with four ponds of
+    // 32: ~3 KiB.
+    within::<kinavis::region::Polygon<64>>(1040);
+    within::<kinavis::region::Region<64, 32, 4>>(3136);
 }
 
 #[test]

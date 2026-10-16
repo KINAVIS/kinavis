@@ -77,6 +77,47 @@ pub enum NavigationError {
         /// Speed through the water, kn.
         speed_through_water: f64,
     },
+
+    /// Shape without extent: a polygon of zero area or with a repeated
+    /// vertex.
+    Degenerate {
+        /// Shape attempted.
+        context: &'static str,
+    },
+
+    /// Two edges of a polygon cross or touch.
+    SelfIntersecting {
+        /// Index of the first edge (from vertex `i` to `i + 1`).
+        first_edge: usize,
+        /// Index of the second edge.
+        second_edge: usize,
+    },
+
+    /// Hole of a region not strictly inside its boundary.
+    HoleOutside {
+        /// Index of the hole.
+        hole: usize,
+    },
+
+    /// Two holes of a region touch or overlap.
+    HolesOverlap {
+        /// Index of the first hole.
+        first: usize,
+        /// Index of the second hole.
+        second: usize,
+    },
+
+    /// Offset leaves nothing of the polygon.
+    OffsetCollapses {
+        /// Offset distance, metres.
+        distance: f64,
+    },
+
+    /// Offset would part the polygon into pieces or make it overlap itself.
+    OffsetSplits {
+        /// Offset distance, metres.
+        distance: f64,
+    },
 }
 
 impl NavigationError {
@@ -118,6 +159,22 @@ impl NavigationError {
             Self::CurrentTooStrong { .. } => KernelError::Indeterminate {
                 quantity: "a track against a current too strong to stem",
             },
+            Self::Degenerate { context } => KernelError::Indeterminate { quantity: context },
+            Self::SelfIntersecting { .. } => KernelError::Indeterminate {
+                quantity: "a polygon whose edges cross",
+            },
+            Self::HoleOutside { .. } => KernelError::Indeterminate {
+                quantity: "a region with a hole outside its boundary",
+            },
+            Self::HolesOverlap { .. } => KernelError::Indeterminate {
+                quantity: "a region with overlapping holes",
+            },
+            Self::OffsetCollapses { .. } => KernelError::Indeterminate {
+                quantity: "an offset that leaves nothing",
+            },
+            Self::OffsetSplits { .. } => KernelError::Indeterminate {
+                quantity: "an offset that parts the polygon",
+            },
         }
     }
 }
@@ -156,6 +213,24 @@ impl fmt::Display for NavigationError {
             } => write!(
                 f,
                 "current of {drift} is too strong for a speed through water of {speed_through_water}"
+            ),
+            Self::Degenerate { context } => write!(f, "{context} has no extent"),
+            Self::SelfIntersecting {
+                first_edge,
+                second_edge,
+            } => write!(f, "polygon edges {first_edge} and {second_edge} cross or touch"),
+            Self::HoleOutside { hole } => {
+                write!(f, "hole {hole} is not strictly inside the region's boundary")
+            }
+            Self::HolesOverlap { first, second } => {
+                write!(f, "holes {first} and {second} touch or overlap")
+            }
+            Self::OffsetCollapses { distance } => {
+                write!(f, "an offset of {distance} m leaves nothing of the polygon")
+            }
+            Self::OffsetSplits { distance } => write!(
+                f,
+                "an offset of {distance} m parts the polygon or makes it overlap itself"
             ),
         }
     }
@@ -198,6 +273,20 @@ mod tests {
                 drift: 5.0,
                 speed_through_water: 2.0,
             },
+            NavigationError::Degenerate {
+                context: "a polygon of zero area",
+            },
+            NavigationError::SelfIntersecting {
+                first_edge: 0,
+                second_edge: 2,
+            },
+            NavigationError::HoleOutside { hole: 1 },
+            NavigationError::HolesOverlap {
+                first: 0,
+                second: 1,
+            },
+            NavigationError::OffsetCollapses { distance: 12.0 },
+            NavigationError::OffsetSplits { distance: 3.0 },
         ];
         for error in errors {
             assert!(!error.to_string().is_empty(), "{error:?}");

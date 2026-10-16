@@ -495,3 +495,55 @@ fn satellites_round_trip_and_refuse_impossible_numbers() {
     );
     assert!(serde_json::from_str::<SatelliteView>(&json.replace("35.0", "95.0")).is_err());
 }
+
+#[test]
+fn regions_round_trip() {
+    use kinavis::region::{Area, PlanarPoint, Polygon, Region, VerticalLimits};
+    let point = |east, north| PlanarPoint::from_metres(east, north).unwrap();
+    let outer = Polygon::<8>::new(&[
+        point(0.0, 0.0),
+        point(400.0, 0.0),
+        point(400.0, 250.0),
+        point(0.0, 250.0),
+    ])
+    .unwrap();
+    let pond = Polygon::<8>::new(&[
+        point(150.0, 100.0),
+        point(180.0, 100.0),
+        point(180.0, 140.0),
+    ])
+    .unwrap();
+    let field = Region::<8, 8, 2>::new(outer, &[pond]).unwrap();
+    assert_eq!(round_trip(field), field);
+    assert_eq!(round_trip(outer), outer);
+    assert_eq!(round_trip(point(1.5, -2.25)), point(1.5, -2.25));
+    assert_eq!(
+        round_trip(Area::from_hectares(2.5).unwrap()),
+        Area::from_hectares(2.5).unwrap()
+    );
+    let limits = VerticalLimits::new(
+        Some(kinavis::geodesy::Height::above_mean_sea_level(
+            kinavis::Distance::from_metres(0.0).unwrap(),
+        )),
+        None,
+    )
+    .unwrap();
+    assert_eq!(round_trip(limits), limits);
+    // Clockwise in storage reads back counter-clockwise.
+    let read: Polygon<8> = serde_json::from_str("[[0,0],[0,10],[10,10],[10,0]]").unwrap();
+    assert_eq!(read.vertices().get(1), Some(&point(10.0, 0.0)));
+}
+
+#[test]
+fn an_impossible_region_is_refused_on_the_way_in() {
+    use kinavis::region::{Polygon, Region};
+    assert!(serde_json::from_str::<Polygon<8>>("[[0,0],[2,2],[2,0],[0,3]]").is_err());
+    assert!(serde_json::from_str::<Polygon<8>>("[[0,0],[1,0]]").is_err());
+    assert!(serde_json::from_str::<Polygon<3>>("[[0,0],[1,0],[1,1],[0,1]]").is_err());
+    // A hole outside the boundary.
+    assert!(serde_json::from_str::<Region<8, 8, 1>>(
+        r#"{"outer":[[0,0],[10,0],[10,10],[0,10]],"holes":[[[20,20],[21,20],[21,21]]]}"#
+    )
+    .is_err());
+    assert!(serde_json::from_str::<kinavis::region::Area>("-1.0").is_err());
+}

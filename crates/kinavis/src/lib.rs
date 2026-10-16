@@ -101,6 +101,8 @@
 //! - [`fix`] — position lines, fixes, cocked hats, distance off.
 //! - [`relative_motion`] — CPA in the plane and in three dimensions, loss of
 //!   separation, radar plotting, avoiding manoeuvre.
+//! - [`region`] — planar polygons and regions with holes: area, containment,
+//!   inward and outward offsets (field boundaries, headlands, geofences).
 //! - [`route`] — passage plans: legs, distances, progress along track.
 //! - [`turning`] — leg-to-leg turns: radius or rate of turn, advance and
 //!   transfer, wheel-over point.
@@ -187,6 +189,7 @@ mod linalg;
 pub mod mob;
 pub mod navigation_solutions;
 pub mod observations;
+pub mod region;
 pub mod relative_motion;
 pub mod route;
 pub mod sailings;

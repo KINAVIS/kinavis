@@ -216,3 +216,69 @@ proptest! {
         }
     }
 }
+
+/// Convex polygon: `count` points on an ellipse, the angles jittered.
+fn convex_ring(
+    count: usize,
+    jitter: &[f64],
+    a: f64,
+    b: f64,
+    x: f64,
+    y: f64,
+) -> Vec<kinavis::region::PlanarPoint> {
+    (0..count)
+        .map(|k| {
+            let angle = (k as f64 + jitter.get(k).copied().unwrap_or(0.0) * 0.8) / count as f64
+                * core::f64::consts::TAU;
+            kinavis::region::PlanarPoint::from_metres(x + a * angle.cos(), y + b * angle.sin())
+                .unwrap()
+        })
+        .collect()
+}
+
+proptest! {
+    #[test]
+    fn a_rotated_rectangle_insets_by_its_sides(
+        width in 10.0_f64..2000.0,
+        height in 10.0_f64..2000.0,
+        heading in 0.0_f64..180.0,
+        fraction in 0.0_f64..0.49,
+        x in -1e6_f64..1e6,
+        y in -1e6_f64..1e7,
+    ) {
+        use kinavis::region::{PlanarPoint, Polygon};
+        let (sin, cos) = heading.to_radians().sin_cos();
+        let corner = |u: f64, v: f64| PlanarPoint::from_metres(x + u * cos - v * sin, y + u * sin + v * cos).unwrap();
+        let field = Polygon::<4>::new(&[corner(0.0, 0.0), corner(width, 0.0), corner(width, height), corner(0.0, height)]).unwrap();
+        let d = fraction * width.min(height);
+        let inset = field.inset(Distance::from_metres(d).unwrap()).unwrap();
+        let expected = (width - 2.0 * d) * (height - 2.0 * d);
+        prop_assert!((inset.area().square_metres() - expected).abs() <= 1e-9 * (1.0 + x.abs() + y.abs()) * (width + height));
+    }
+
+    #[test]
+    fn a_convex_polygon_grown_and_shrunk_is_itself(
+        count in 3_usize..24,
+        jitter in proptest::collection::vec(0.0_f64..1.0, 24),
+        a in 20.0_f64..3000.0,
+        b in 20.0_f64..3000.0,
+        x in -1e6_f64..1e6,
+        y in -1e6_f64..1e7,
+        d in 0.1_f64..50.0,
+    ) {
+        use kinavis::region::Polygon;
+        let ring = convex_ring(count, &jitter, a, b, x, y);
+        let Ok(field) = Polygon::<24>::new(&ring) else { return Ok(()); };
+        let distance = Distance::from_metres(d).unwrap();
+        let back = field.outset(distance).and_then(|grown| grown.inset(distance));
+        // Outward, a convex polygon keeps every edge; inward the same edges
+        // move back. Only vertices whose edges vanished could differ, and none
+        // can vanish on the way out.
+        let back = back.unwrap();
+        prop_assert_eq!(back.vertices().len(), field.vertices().len());
+        let scale = 1e-9 * (1.0 + x.abs() + y.abs() + a + b);
+        for vertex in back.vertices() {
+            prop_assert!(field.distance_to_boundary(*vertex).metres() <= scale);
+        }
+    }
+}

@@ -937,6 +937,7 @@ deliberately):
 | `kinavis::Route`, `RouteSchedule` | 2.5 KiB | `MAX_WAYPOINTS` positions |
 | `kinavis_nmea2000::Assembler`, `kinavis_ins::InsFilter` | 2.5 KiB | fast packets in flight; INS state and covariance |
 | `kinavis::DeviationTable` | 1.25 KiB | `MAX_TABLE_NODES` nodes |
+| `kinavis::region::Polygon<N>` | 16 B a vertex | `N` vertices; `Region<64, 32, 4>` is ~3 KiB |
 | `kinavis::NavigationSnapshot` | 192 B | what a display reads every tick |
 | `NavigationEvent`, `NavigationError`, every event and error | 64 B | one cache line |
 
