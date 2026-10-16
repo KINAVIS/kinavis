@@ -395,7 +395,7 @@ fn travels_forward<L: ReferenceLine>(line: &L, at: PlanarPoint, heading: GridCou
 
 /// Point of the pass at signed offset `target` nearest `point`, by moving
 /// across the pass direction until the offset matches.
-fn project<L: ReferenceLine>(line: &L, target: f64, point: PlanarPoint) -> PlanarPoint {
+pub(crate) fn project<L: ReferenceLine>(line: &L, target: f64, point: PlanarPoint) -> PlanarPoint {
     let mut p = point;
     for _ in 0..4 {
         let station = line.station(p);
