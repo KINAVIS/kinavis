@@ -6,7 +6,7 @@
 
 use libfuzzer_sys::fuzz_target;
 
-use kinavis_nmea2000::{Nmea2000Pgn, Message, Payload, Pgn};
+use kinavis_nmea2000::{Message, Payload, Pgn};
 
 fuzz_target!(|data: &[u8]| {
     let [a, b, c, source, bytes @ ..] = data else {
