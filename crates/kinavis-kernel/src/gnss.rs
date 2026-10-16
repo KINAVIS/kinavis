@@ -30,8 +30,10 @@
 
 use crate::angle::TrueCourse;
 use crate::error::{ensure_finite, KernelError, Result};
+use crate::math;
 use crate::observation::{ObservationStatus, Observed, Quality};
 use crate::position::Position;
+use crate::snapshot::ErrorEllipse;
 use crate::time::{Instant, Utc};
 use crate::units::{Distance, Speed};
 
@@ -202,6 +204,8 @@ pub struct GnssFix {
     course_over_ground: Option<TrueCourse>,
     speed_over_ground: Option<Speed>,
     quality: GnssQuality,
+    #[cfg_attr(feature = "serde", serde(default))]
+    horizontal_error: Option<ErrorEllipse>,
 }
 
 impl GnssFix {
@@ -222,6 +226,7 @@ impl GnssFix {
                     vdop: None,
                     pdop: None,
                 },
+                horizontal_error: None,
             },
         }
     }
@@ -258,13 +263,29 @@ impl GnssFix {
         &self.quality
     }
 
-    /// Estimated 1σ horizontal error: HDOP × nominal UERE for the fix type.
+    /// 1σ horizontal error ellipse, if the receiver reports one (NMEA `GST`,
+    /// UBX `NAV-PVT`).
+    #[must_use]
+    pub const fn horizontal_error(&self) -> Option<ErrorEllipse> {
+        self.horizontal_error
+    }
+
+    /// Estimated 1σ horizontal error.
     ///
-    /// `None` without HDOP or for non-satellite positions. A nominal estimate,
-    /// not a measurement; see [`GnssFix::horizontal_accuracy_with`] to supply a
-    /// UERE.
+    /// From the receiver's error ellipse when present: the root-sum-square of
+    /// its semi-axes (DRMS). Otherwise HDOP × nominal UERE for the fix type, a
+    /// nominal estimate rather than a measurement; see
+    /// [`GnssFix::horizontal_accuracy_with`] to supply a UERE. `None` with
+    /// neither, or for non-satellite positions.
     #[must_use]
     pub fn horizontal_accuracy(&self) -> Option<Distance> {
+        if !self.quality.fix_type.is_position_fix() {
+            return None;
+        }
+        if let Some(ellipse) = self.horizontal_error {
+            let drms = math::hypot(ellipse.semi_major().metres(), ellipse.semi_minor().metres());
+            return Distance::from_metres(drms).ok();
+        }
         let uere = self.quality.fix_type.nominal_uere_metres()?;
         // The UERE table holds finite constants; cannot fail.
         self.horizontal_accuracy_with(Distance::from_metres(uere).ok()?)
@@ -349,6 +370,12 @@ impl GnssFixBuilder {
     /// PDOP.
     pub const fn pdop(mut self, pdop: Dop) -> Self {
         self.fix.quality.pdop = Some(pdop);
+        self
+    }
+
+    /// 1σ horizontal error ellipse reported by the receiver.
+    pub const fn horizontal_error(mut self, ellipse: ErrorEllipse) -> Self {
+        self.fix.horizontal_error = Some(ellipse);
         self
     }
 
@@ -449,5 +476,38 @@ mod tests {
         let json = serde_json::to_string(&fix).unwrap();
         assert_eq!(serde_json::from_str::<GnssFix>(&json).unwrap(), fix);
         assert!(serde_json::from_str::<Dop>("-1.0").is_err());
+    }
+
+    #[test]
+    fn a_receiver_error_ellipse_takes_precedence_over_dop() {
+        let ellipse = ErrorEllipse::new(
+            Distance::from_metres(0.03).unwrap(),
+            Distance::from_metres(0.04).unwrap(),
+            TrueCourse::NORTH,
+        );
+        assert!(ellipse.is_err(), "minor axis larger than major");
+        let ellipse = ErrorEllipse::new(
+            Distance::from_metres(0.04).unwrap(),
+            Distance::from_metres(0.03).unwrap(),
+            TrueCourse::NORTH,
+        )
+        .unwrap();
+        let fix = GnssFix::builder(at(0), somewhere())
+            .fix_type(FixType::RtkFixed)
+            .hdop(Dop::new(2.0).unwrap())
+            .horizontal_error(ellipse)
+            .build();
+        assert_eq!(fix.horizontal_error(), Some(ellipse));
+        assert!((fix.horizontal_accuracy().unwrap().metres() - 0.05).abs() < 1e-12);
+        let without = GnssFix::builder(at(0), somewhere())
+            .fix_type(FixType::RtkFixed)
+            .hdop(Dop::new(2.0).unwrap())
+            .build();
+        assert!((without.horizontal_accuracy().unwrap().metres() - 0.04).abs() < 1e-12);
+        let manual = GnssFix::builder(at(0), somewhere())
+            .fix_type(FixType::Manual)
+            .horizontal_error(ellipse)
+            .build();
+        assert_eq!(manual.horizontal_accuracy(), None);
     }
 }

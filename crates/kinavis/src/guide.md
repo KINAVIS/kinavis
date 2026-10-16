@@ -929,6 +929,7 @@ deliberately):
 |---|---|---|
 | `kinavis_traffic::Traffic` | 16 KiB | `MAX_TARGETS` tracks of `MAX_TRACK_HISTORY` fixes |
 | `kinavis::estimator::Estimator<_>` | 9 KiB | `MAX_HISTORY` beliefs, for late observations |
+| `kinavis_kernel::SatelliteSet` | 5 KiB | `MAX_SATELLITES` satellites in view |
 | `kinavis_traffic::CollisionPicture` | 4 KiB | one assessment per target |
 | `kinavis_alerts::AlertManager<_>` | 3.5 KiB | `MAX_ALERTS` standing alerts |
 | `kinavis_traffic::TrafficView` | 3 KiB | one entry per target |

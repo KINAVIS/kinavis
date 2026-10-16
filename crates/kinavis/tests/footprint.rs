@@ -30,7 +30,8 @@ fn the_aggregates_stay_within_their_budgets() {
     // Estimator: MAX_HISTORY beliefs for late observations.
     within::<kinavis::estimator::Estimator<kinavis::estimator::SteadyMotion>>(9216);
     within::<kinavis::state::NavigationState>(512);
-    within::<kinavis::gnss_intake::GnssIntake>(320);
+    // Holds the last fix, error ellipse included.
+    within::<kinavis::gnss_intake::GnssIntake>(352);
 }
 
 #[test]

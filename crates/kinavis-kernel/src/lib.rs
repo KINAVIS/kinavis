@@ -13,7 +13,7 @@
 //! # Type guarantees
 //!
 //! Angles carry their reference frame: [`CompassCourse`], [`MagneticCourse`],
-//! [`TrueCourse`], [`GyroCourse`], [`Variation`], [`Deviation`],
+//! [`TrueCourse`], [`GyroCourse`], [`GridCourse`], [`Variation`], [`Deviation`],
 //! [`RelativeBearing`]. Passing a magnetic course where a true one is expected
 //! does not compile. [`Distance`] and [`Speed`] are types, so knots cannot be
 //! passed as m/s.
@@ -27,17 +27,19 @@
 //! # Modules
 //!
 //! - [`angle`] — frame-tagged angles.
-//! - [`units`] — angles, distances, speeds, rate of turn.
+//! - [`units`] — angles, distances, speeds, accelerations, rate of turn.
 //! - [`position`] — latitude, longitude, notation.
 //! - [`error`] — the error type and validation helpers.
 //! - [`time`] — instants with the time scale in the type, calendar, leap-second
 //!   port.
 //! - [`observation`] — a value with its time and quality; age is computed.
 //! - [`geodesy`] — ellipsoids, heights with datum, ECEF, chart datums and their
-//!   transformation to WGS 84.
+//!   transformation to WGS 84, the geoid port.
 //! - [`local`] — NED and other local frames; vectors typed by frame and unit; a
-//!   frame anchored at a point.
+//!   frame anchored at a point; position and velocity in three dimensions.
 //! - [`gnss`] — a satellite fix, independent of the sentence format.
+//! - [`satellite`] — satellites in view: identity, sky position, signal, use in
+//!   the fix, range residual.
 //! - [`state`] — navigation state aggregate behind invariants, projected to the
 //!   read model.
 //! - [`estimation`] — estimator ports: process model and observation.
@@ -100,6 +102,7 @@ pub mod matrix;
 pub mod observation;
 mod parse;
 pub mod position;
+pub mod satellite;
 pub mod snapshot;
 pub mod state;
 pub mod time;
@@ -107,9 +110,9 @@ pub mod units;
 
 pub use angle::{
     wrap180, wrap360, CardinalPoint, Compass, CompassBearing, CompassCourse, Deviation, Direction,
-    Frame, Gyro, GyroBearing, GyroCourse, Magnetic, MagneticBearing, MagneticCourse,
-    RelativeBearing, Side, True, TrueBearing, TrueCourse, Variation, MAX_DEVIATION_DEG,
-    MAX_VARIATION_DEG,
+    Frame, Grid, GridBearing, GridCourse, Gyro, GyroBearing, GyroCourse, Magnetic, MagneticBearing,
+    MagneticCourse, RelativeBearing, Side, True, TrueBearing, TrueCourse, Variation,
+    MAX_DEVIATION_DEG, MAX_VARIATION_DEG,
 };
 pub use environment::{
     CompassModel, Current, CurrentModel, EnvironmentSample, LeewayModel, MagneticField,
@@ -124,13 +127,16 @@ pub use event::{
     Event, EventList, NavigationEvent, NavigationIntegrity, PositionSource, RejectionReason,
     SensorHealth, SensorId, TargetId, MAX_EVENTS, SENSOR_NAME_BYTES,
 };
-pub use geodesy::{Datum, EcefPoint, Ellipsoid, GeodeticPoint, Height, Helmert, VerticalDatum};
+pub use geodesy::{
+    Datum, EcefPoint, Ellipsoid, GeodeticPoint, GeoidModel, Height, Helmert, VerticalDatum,
+};
 pub use gnss::{Dop, FixType, GnssFix, GnssFixBuilder, GnssQuality};
 pub use inline::InlineStr;
-pub use local::{Body, Enu, LocalFrame, Ned, Vector3, VectorFrame, VectorUnit};
+pub use local::{Body, Enu, Flu, Kinematics3, LocalFrame, Ned, Vector3, VectorFrame, VectorUnit};
 pub use observation::{ObservationStatus, Observed, Quality};
 pub use position::{EastWest, GeocentricUnit, Latitude, Longitude, NorthSouth, Position};
+pub use satellite::{Constellation, SatelliteId, SatelliteSet, SatelliteView, MAX_SATELLITES};
 pub use snapshot::{ErrorEllipse, GroundTrack, NavigationSnapshot};
 pub use state::{NavigationState, StateComponent, StatePriors};
 pub use time::{Civil, Gps, Instant, LeapSeconds, Tai, TimeScale, Utc};
-pub use units::{Angle, Distance, RateOfTurn, Speed};
+pub use units::{Acceleration, Angle, Distance, RateOfTurn, Speed};
