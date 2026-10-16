@@ -122,8 +122,10 @@ impl<const N: usize> CurveLine<N> {
     /// most `M` vertices: arcs on the outside of bends drawn with chords no
     /// farther than `tolerance` from the arc, loops on the inside cut.
     ///
-    /// Each vertex of the result lies within `tolerance` of the exact
-    /// parallel curve that [`ReferenceLine::station`] measures from.
+    /// Each vertex of the result lies within twice `tolerance`, plus a
+    /// millionth of the distance, of the exact parallel curve that
+    /// [`ReferenceLine::station`] measures from: a loop cut next to an arc
+    /// meets its chord, not the arc.
     ///
     /// # Errors
     ///

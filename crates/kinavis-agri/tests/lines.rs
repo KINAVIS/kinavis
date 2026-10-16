@@ -122,7 +122,9 @@ proptest! {
             Ok(parallel) => {
                 for vertex in parallel.vertices() {
                     let error = (curve.station(*vertex).offset.metres() - d).abs();
-                    prop_assert!(error <= 2.0 * tolerance + 1e-5, "{vertex} off by {error}");
+                    // The bound of `CurveLine::offset`.
+                    let bound = 2.0 * tolerance + 1e-6 * (1.0 + d.abs());
+                    prop_assert!(error <= bound, "{vertex} off by {error}");
                 }
             }
             Err(AgriError::Navigation(NavigationError::OffsetCollapses { .. })) => {}
