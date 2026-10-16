@@ -10,6 +10,7 @@ exclude = [
     "crates/kinavis-ais/fuzz",
     "crates/kinavis-nmea2000/fuzz",
     "crates/kinavis-geoid/fuzz",
+    "crates/kinavis-grid/fuzz",
 ]
 
 [workspace.package]

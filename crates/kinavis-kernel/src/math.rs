@@ -59,6 +59,21 @@ mod imp {
     pub(crate) fn trunc(x: f64) -> f64 {
         x.trunc()
     }
+    pub(crate) fn sinh(x: f64) -> f64 {
+        x.sinh()
+    }
+    pub(crate) fn cosh(x: f64) -> f64 {
+        x.cosh()
+    }
+    pub(crate) fn tanh(x: f64) -> f64 {
+        x.tanh()
+    }
+    pub(crate) fn asinh(x: f64) -> f64 {
+        x.asinh()
+    }
+    pub(crate) fn atanh(x: f64) -> f64 {
+        x.atanh()
+    }
 }
 
 #[cfg(all(not(feature = "std"), feature = "libm"))]
@@ -110,6 +125,21 @@ mod imp {
     }
     pub(crate) fn trunc(x: f64) -> f64 {
         libm::trunc(x)
+    }
+    pub(crate) fn sinh(x: f64) -> f64 {
+        libm::sinh(x)
+    }
+    pub(crate) fn cosh(x: f64) -> f64 {
+        libm::cosh(x)
+    }
+    pub(crate) fn tanh(x: f64) -> f64 {
+        libm::tanh(x)
+    }
+    pub(crate) fn asinh(x: f64) -> f64 {
+        libm::asinh(x)
+    }
+    pub(crate) fn atanh(x: f64) -> f64 {
+        libm::atanh(x)
     }
 }
 
@@ -215,6 +245,41 @@ pub fn exp(x: f64) -> f64 {
 #[inline]
 pub fn hypot(x: f64, y: f64) -> f64 {
     imp::hypot(x, y)
+}
+
+/// Hyperbolic sine.
+#[must_use]
+#[inline]
+pub fn sinh(x: f64) -> f64 {
+    imp::sinh(x)
+}
+
+/// Hyperbolic cosine.
+#[must_use]
+#[inline]
+pub fn cosh(x: f64) -> f64 {
+    imp::cosh(x)
+}
+
+/// Hyperbolic tangent.
+#[must_use]
+#[inline]
+pub fn tanh(x: f64) -> f64 {
+    imp::tanh(x)
+}
+
+/// Inverse hyperbolic sine.
+#[must_use]
+#[inline]
+pub fn asinh(x: f64) -> f64 {
+    imp::asinh(x)
+}
+
+/// Inverse hyperbolic tangent; `NaN` outside `[-1, 1]`, `±∞` at `±1`.
+#[must_use]
+#[inline]
+pub fn atanh(x: f64) -> f64 {
+    imp::atanh(x)
 }
 
 /// Round to nearest, halves away from zero.

@@ -31,7 +31,7 @@ input. Reporters are credited in the advisory unless they prefer not to be.
 | Crate | Supported |
 |---|---|
 | `kinavis`, `kinavis-kernel` | the latest `1.x` |
-| `kinavis-nmea0183`, `kinavis-ais`, `kinavis-nmea2000`, `kinavis-ins`, `kinavis-traffic`, `kinavis-colregs`, `kinavis-alerts`, `kinavis-wmm`, `kinavis-geoid` | the latest `0.x` |
+| `kinavis-nmea0183`, `kinavis-ais`, `kinavis-nmea2000`, `kinavis-ins`, `kinavis-traffic`, `kinavis-colregs`, `kinavis-alerts`, `kinavis-wmm`, `kinavis-geoid`, `kinavis-grid` | the latest `0.x` |
 
 Older releases are not patched; upgrade. The minimum supported Rust version
 is stated in `Cargo.toml` (`rust-version`) and tested in CI.
@@ -113,6 +113,7 @@ panics or hangs on a malformed sentence has failed the watch.
 |---|---|---|---|
 | Malformed or oversized sentence, frame or payload crashes the parser | nmea0183 `parse`, nmea2000 `decode`/`frames`, ais `decode`/`assemble` | Fixed-size buffers with published bounds (`MAX_SENTENCE_BYTES`, `MAX_PAYLOAD_BYTES`, `MAX_MESSAGE_BITS`); every length and index checked; errors carry at most `EXCERPT_BYTES` of the input | `cargo fuzz` targets for each entry point (job `fuzz-smoke`), `tests/robustness.rs`, `ci/panic-free.py` on the bare-metal IR |
 | A malformed or truncated geoid grid reads out of bounds or yields a wrong height | geoid `GridGeoid::from_pgm` | Header checked line by line with a bounded line length; dimensions bounded (`2^20`), width even, height odd; the sample bytes must equal width × height × 2 exactly; every sample read is a checked slice | fuzz target `pgm` (reads, then evaluates both interpolations), unit tests of refused headers, `ci/panic-free.py` |
+| A malformed MGRS reference is misread or reads out of bounds | grid `MgrsSquare::from_str` | Zone of at most two digits within 1–60, letters looked up in their sets, an even number of digits up to 22, the square checked against its band; fixed-size output, no allocation | fuzz target `mgrs`, refused-input tests, `ci/panic-free.py` |
 | Integer overflow yields a wrong length, offset or time | every crate | `checked_*`/`saturating_*` or a bound the compiler can see | `ci/panic-free.py` on the `strict` profile (overflow checks on), so any unchecked arithmetic shows as a panic path |
 | Non-finite or out-of-range number reaches a calculation | every constructor | `NaN`, infinities and out-of-range values refused at construction; every result type checks its own output | `tests/robustness.rs` and property tests over the whole domain |
 | A stored file carries a value the constructor would refuse | every `serde` `Deserialize` | `#[serde(try_from = "Stored…")]` on every type with an invariant, so a file goes through the same checks as code | `ci/serde-guard.py` fails the build on a `Deserialize` derive that skips the constructor; `tests/serde_round_trip.rs` |
