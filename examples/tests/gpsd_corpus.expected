@@ -12,12 +12,22 @@
     513 GGA: no fix
    3026 GGA: position
    2375 GLL
+     21 GRS
+     30 GSA: a satellite unnamed
+   4530 GSA: every satellite named
+    270 GST: error ellipse
+     33 GST: no error ellipse
+   6444 GSV: line held
+     35 GSV: refused, OutOfOrder
+   3986 GSV: report complete
    2659 RMC: fix
     180 RMC: no fix, NoPosition
    2714 VTG
+   1222 ZDA: instant
+      4 ZDA: no instant, NoTime
     388 refused: BadChecksum
-     79 refused: BadField
+     80 refused: BadField
       8 refused: BadHeader
     483 refused: NoChecksum
     413 refused: TooLong
-  24088 unsupported sentence
+   7512 unsupported sentence

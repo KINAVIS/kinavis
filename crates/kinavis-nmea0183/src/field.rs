@@ -33,6 +33,10 @@ pub(crate) mod bounds {
     pub(crate) const DOP: (f64, f64) = (0.0, 100.0);
     /// Age of the differential correction, seconds.
     pub(crate) const DIFFERENTIAL_AGE_SECONDS: (f64, f64) = (0.0, 9999.0);
+    /// Standard deviation of a position or range error, metres.
+    pub(crate) const SIGMA_METRES: (f64, f64) = (0.0, 100_000.0);
+    /// Range residual, metres.
+    pub(crate) const RESIDUAL_METRES: (f64, f64) = (-1000.0, 1000.0);
     /// Magnetic variation from which the field reads as not available:
     /// receivers without a magnetic model write 999.9.
     pub(crate) const NO_VARIATION_DEGREES: f64 = 999.0;
@@ -349,6 +353,44 @@ impl<'a> Field<'a> {
         Mode::from_letter(self.letter("mode")?)
             .map(Some)
             .ok_or_else(|| self.bad("mode"))
+    }
+
+    /// One hexadecimal digit (NMEA 4.10 system and signal identifiers).
+    pub(crate) fn optional_hex_digit(
+        &self,
+        expected: &'static str,
+    ) -> Result<Option<u8>, NmeaError> {
+        match self.bytes {
+            [] => Ok(None),
+            [digit] => char::from(*digit)
+                .to_digit(16)
+                .and_then(|value| u8::try_from(value).ok())
+                .map(Some)
+                .ok_or_else(|| self.bad(expected)),
+            _ => Err(self.bad(expected)),
+        }
+    }
+
+    /// Signed integer within `(min, max)`, inclusive; empty reads as `None`.
+    pub(crate) fn optional_bounded_integer(
+        &self,
+        expected: &'static str,
+        (min, max): (i32, i32),
+    ) -> Result<Option<i32>, NmeaError> {
+        if self.is_empty() {
+            return Ok(None);
+        }
+        let body = match self.bytes {
+            [b'-' | b'+', rest @ ..] => rest,
+            all => all,
+        };
+        if body.is_empty() || !body.iter().all(u8::is_ascii_digit) {
+            return Err(self.bad(expected));
+        }
+        let value: i32 = self.text().parse().map_err(|_| self.bad(expected))?;
+        ensure_range(expected, f64::from(value), f64::from(min), f64::from(max))
+            .map_err(|e| self.value(e))?;
+        Ok(Some(value))
     }
 
     /// GGA fix quality digit.

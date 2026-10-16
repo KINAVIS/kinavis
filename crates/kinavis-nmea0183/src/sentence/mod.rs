@@ -10,15 +10,28 @@ use crate::frame::Frame;
 
 mod gga;
 mod gll;
+mod grs;
+mod gsa;
+mod gst;
+mod gsv;
 mod rmc;
+mod satellites;
 mod vdm;
 mod vtg;
+mod zda;
 
 pub use gga::Gga;
 pub use gll::Gll;
+pub use grs::Grs;
+pub use gsa::{Dimension, Gsa, Selection, MAX_GSA_SATELLITES};
+pub use gst::Gst;
+pub use gsv::{
+    Gsv, GsvAssembler, GsvError, GsvProgress, GsvSatellite, MAX_GSV_SATELLITES, MAX_GSV_TALKERS,
+};
 pub use rmc::Rmc;
 pub use vdm::{Channel, Payload, Vdm, MAX_FRAGMENTS, MAX_PAYLOAD_CHARS};
 pub use vtg::Vtg;
+pub use zda::{LocalZone, Zda};
 
 /// Two-letter talker identifier: `GP` GPS, `GN` multi-constellation, `GL`
 /// GLONASS, etc.
@@ -248,6 +261,16 @@ pub enum Sentence {
     Vtg(Vtg),
     /// AIS message or fragment (`VDM`/`VDO`), payload still armoured.
     Vdm(Vdm),
+    /// DOP and active satellites.
+    Gsa(Gsa),
+    /// Pseudorange error statistics: the receiver's error ellipse.
+    Gst(Gst),
+    /// One line of a satellites-in-view report.
+    Gsv(Gsv),
+    /// Range residuals.
+    Grs(Grs),
+    /// Time and date.
+    Zda(Zda),
     /// Well-formed sentence (checksum verified) of an unsupported type. Not an
     /// error; the caller decides whether to log or ignore it.
     Unsupported {
@@ -325,6 +348,11 @@ impl Sentence {
             b"GGA" => Self::Gga(Gga::decode(talker, frame)?),
             b"GLL" => Self::Gll(Gll::decode(talker, frame)?),
             b"VTG" => Self::Vtg(Vtg::decode(talker, frame)?),
+            b"GSA" => Self::Gsa(Gsa::decode(talker, frame)?),
+            b"GST" => Self::Gst(Gst::decode(talker, frame)?),
+            b"GSV" => Self::Gsv(Gsv::decode(talker, frame)?),
+            b"GRS" => Self::Grs(Grs::decode(talker, frame)?),
+            b"ZDA" => Self::Zda(Zda::decode(talker, frame)?),
             _ => Self::Unsupported {
                 address: Address::new(frame.address),
             },
@@ -344,6 +372,11 @@ impl fmt::Display for Sentence {
             Self::Gll(gll) => gll.fmt(f),
             Self::Vtg(vtg) => vtg.fmt(f),
             Self::Vdm(vdm) => vdm.fmt(f),
+            Self::Gsa(gsa) => gsa.fmt(f),
+            Self::Gst(gst) => gst.fmt(f),
+            Self::Gsv(gsv) => gsv.fmt(f),
+            Self::Grs(grs) => grs.fmt(f),
+            Self::Zda(zda) => zda.fmt(f),
             Self::Unsupported { .. } => Err(fmt::Error),
         }
     }

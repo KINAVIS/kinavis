@@ -14,6 +14,11 @@ fn sentence_like() -> impl Strategy<Value = Vec<u8>> {
         Just(b"$GPGGA,".to_vec()),
         Just(b"$GPGLL,".to_vec()),
         Just(b"$GPVTG,".to_vec()),
+        Just(b"$GPGSA,".to_vec()),
+        Just(b"$GNGST,".to_vec()),
+        Just(b"$GLGSV,".to_vec()),
+        Just(b"$GPGRS,".to_vec()),
+        Just(b"$GNZDA,".to_vec()),
         Just(b"$GNXYZ,".to_vec()),
         Just(b"!AIVDM,".to_vec()),
     ];
@@ -24,7 +29,7 @@ fn sentence_like() -> impl Strategy<Value = Vec<u8>> {
         "-?[0-9.]{0,8}".prop_map(String::into_bytes),
         proptest::collection::vec(any::<u8>(), 0..6),
     ];
-    (header, proptest::collection::vec(field, 0..16)).prop_map(|(header, fields)| {
+    (header, proptest::collection::vec(field, 0..24)).prop_map(|(header, fields)| {
         let mut body = header;
         for (index, field) in fields.iter().enumerate() {
             if index > 0 {

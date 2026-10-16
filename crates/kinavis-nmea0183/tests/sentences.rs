@@ -2,6 +2,7 @@
 
 #![allow(
     clippy::unwrap_used,
+    clippy::expect_used,
     clippy::float_cmp,
     clippy::panic,
     clippy::indexing_slicing
@@ -114,11 +115,11 @@ fn gll_and_vtg_read_their_fields() {
 
 #[test]
 fn unsupported_sentences_are_not_errors() {
-    let sentence = parse(b"$GPGSA,A,3,04,05,,09,12,,,24,,,,,2.5,1.3,2.1*39").unwrap();
+    let sentence = parse(b"$GPHDT,274.07,T*03").unwrap();
     let Sentence::Unsupported { address } = sentence else {
         panic!("should be unsupported")
     };
-    assert_eq!(address.as_str(), "GPGSA");
+    assert_eq!(address.as_str(), "GPHDT");
     // Proprietary and encapsulation sentences too, checksum verified.
     assert!(matches!(
         parse(b"$PGRMM,WGS 84*06").unwrap(),
@@ -171,7 +172,19 @@ fn a_leap_second_reading_names_no_moment() {
 
 #[test]
 fn every_supported_sentence_survives_a_round_trip() {
-    let lines: [&[u8]; 6] = [
+    let extra: Vec<String> = [
+        "GPGSA,A,3,04,05,,09,12,,,24,,,,,2.5,1.3,2.1",
+        "GNGSA,A,3,68,69,70,78,84,85,,,,,,,1.5,1.3,1.0,2",
+        "GPGST,172814.00,0.006,0.023,0.020,273.6,0.023,0.020,0.031",
+        "GPGSV,3,1,10,28,38,139,46,10,17,193,50,02,55,274,50,04,61,358,",
+        "GAGSV,2,1,07,36,76,149,45,09,47,142,50,04,40,062,35,11,26,120,44,7",
+        "GPGRS,112257.00,1,-0.1,-0.3,-0.1,,,,,,,,,",
+        "GPZDA,183531.00,23,12,2007,00,00",
+    ]
+    .iter()
+    .map(|body| with_checksum(body))
+    .collect();
+    let mut lines: Vec<&[u8]> = vec![
         b"$GPRMC,081836.00,A,3751.6500,S,14507.3600,E,0.0,0.0,130998,11.3,E*79",
         b"$GNRMC,225444.25,A,4916.4500,N,12311.1200,W,3.0,272.5,110926,5.0,W,D*29",
         b"$GPGGA,092750.00,5321.6802,N,00630.3372,W,1,08,1.0,61.7,M,55.2,M,,*45",
@@ -179,6 +192,7 @@ fn every_supported_sentence_survives_a_round_trip() {
         b"$GPGLL,4916.4500,N,12311.1200,W,225444.00,A,A*72",
         b"$GPVTG,54.7,T,34.4,M,5.5,N,10.2,K,A*15",
     ];
+    lines.extend(extra.iter().map(String::as_bytes));
     for line in lines {
         let sentence =
             parse(line).unwrap_or_else(|e| panic!("{e}: {}", String::from_utf8_lossy(line)));
@@ -506,4 +520,163 @@ fn a_variation_without_a_magnitude_reads_as_not_available() {
     };
     assert_eq!(rmc.variation, None);
     assert!(GnssFix::try_from(rmc).is_ok());
+}
+
+fn line(body: &str) -> Sentence {
+    parse(with_checksum(body).as_bytes()).unwrap_or_else(|e| panic!("{e}: {body}"))
+}
+
+#[test]
+fn gsa_keeps_its_slots_and_names_the_satellites() {
+    use kinavis_kernel::Constellation;
+    use kinavis_nmea0183::{Dimension, Selection};
+    let Sentence::Gsa(gsa) = line("GPGSA,A,3,04,05,,09,12,,,24,,,,,2.5,1.3,2.1") else {
+        panic!("GSA")
+    };
+    assert_eq!(gsa.selection, Selection::Automatic);
+    assert_eq!(gsa.dimension, Dimension::ThreeD);
+    assert_eq!(gsa.slots.len(), 12);
+    assert_eq!(gsa.slots[2], None);
+    assert_eq!(gsa.satellites().count(), 5);
+    assert_eq!(gsa.hdop.unwrap().value(), 1.3);
+    // NMEA 4.10: the system identifier names a `GN` sentence's constellation.
+    let Sentence::Gsa(glonass) = line("GNGSA,A,3,68,69,70,78,84,85,,,,,,,1.5,1.3,1.0,2") else {
+        panic!("GSA")
+    };
+    assert_eq!(glonass.system, Some(2));
+    assert!(glonass
+        .satellites()
+        .all(|id| id.constellation() == Constellation::Glonass));
+    // SiRF-TriG writes a decimal number there: not a system identifier.
+    let Sentence::Gsa(sirf) = line("GPGSA,A,3,25,32,,,,,,,,,,,5.1,1.3,4.9,3.3") else {
+        panic!("GSA")
+    };
+    assert_eq!(sirf.system, None);
+    // Twenty-four satellite fields.
+    let Sentence::Gsa(long) = line("GPGSA,A,3,23,13,07,25,,,,,,,,,,,,,,,,,,,,,09.2,07.2,05.7")
+    else {
+        panic!("GSA")
+    };
+    assert_eq!(long.slots.len(), 24);
+    assert_eq!(long.vdop.unwrap().value(), 5.7);
+}
+
+#[test]
+fn gst_gives_the_receivers_error_ellipse() {
+    let Sentence::Gst(gst) = line("GPGST,172814.00,0.006,0.023,0.020,273.6,0.023,0.020,0.031")
+    else {
+        panic!("GST")
+    };
+    let ellipse = gst.error_ellipse().unwrap();
+    assert!((ellipse.semi_major().metres() - 0.023).abs() < 1e-12);
+    assert!(
+        (ellipse.orientation().degrees() - 93.6).abs() < 1e-9,
+        "an axis has no sense"
+    );
+    // Without the ellipse fields, from the latitude and longitude errors.
+    let Sentence::Gst(sigmas) = line("GPGST,131519.00,11,,,,0.70,0.49,1.1") else {
+        panic!("GST")
+    };
+    let ellipse = sigmas.error_ellipse().unwrap();
+    assert!((ellipse.semi_major().metres() - 0.70).abs() < 1e-12);
+    assert!((ellipse.semi_minor().metres() - 0.49).abs() < 1e-12);
+    // Before a fix, hundreds of kilometres: not an estimate.
+    let Sentence::Gst(before) = line("GPGST,001902.00,0.0000,,,,305018,305012,62144") else {
+        panic!("GST")
+    };
+    assert_eq!(before.latitude_sigma, None);
+    assert_eq!(before.error_ellipse(), None);
+    // SkyTraq writes the orientation signed.
+    let Sentence::Gst(signed) = line("GPGST,232721.000,2.5,89.9,9.1,-41.0,0.3,0.3,0.6") else {
+        panic!("GST")
+    };
+    assert!((signed.orientation.unwrap().degrees() - 319.0).abs() < 1e-9);
+}
+
+#[test]
+fn gsv_lines_of_every_talker_assemble_into_one_sky() {
+    use kinavis_nmea0183::{GsvAssembler, GsvError, GsvProgress};
+    let mut sky: GsvAssembler = GsvAssembler::new();
+    let gsv = |body| match line(body) {
+        Sentence::Gsv(gsv) => gsv,
+        other => panic!("{other:?}"),
+    };
+    let first = gsv("GPGSV,2,1,06,21,10,040,40,28,55,270,47,25,33,180,43,07,05,350,40");
+    let second = gsv("GPGSV,2,2,06,30,67,090,38,05,12,120,");
+    let glonass = gsv("GLGSV,1,1,02,79,81,336,,69,50,211,30");
+    assert_eq!(sky.push(&first).unwrap(), GsvProgress::Partial);
+    assert_eq!(
+        sky.push(&glonass).unwrap(),
+        GsvProgress::Complete(glonass.talker)
+    );
+    assert_eq!(
+        sky.push(&second).unwrap(),
+        GsvProgress::Complete(first.talker)
+    );
+    assert_eq!(sky.satellites().len(), 8);
+    let satellite = sky
+        .satellites()
+        .iter()
+        .find(|view| view.id().number() == 15)
+        .expect("GLONASS 79 is slot 15");
+    assert_eq!(satellite.elevation().unwrap().degrees(), 81.0);
+    assert_eq!(satellite.carrier_to_noise(), None);
+    // A lost line drops the talker's report.
+    sky.clear();
+    sky.push(&first).unwrap();
+    let again = gsv("GPGSV,2,1,06,21,10,040,40,28,55,270,47,25,33,180,43,07,05,350,40");
+    sky.push(&again).unwrap();
+    let third = gsv("GPGSV,3,3,09,11,12,130,");
+    assert!(matches!(
+        sky.push(&third),
+        Err(GsvError::OutOfOrder {
+            expected: 2,
+            found: 3,
+            ..
+        })
+    ));
+}
+
+#[test]
+fn grs_puts_each_residual_on_its_gsa_slot() {
+    use kinavis_kernel::SatelliteSet;
+    let Sentence::Gsa(gsa) = line("GPGSA,A,3,04,05,,09,,,,,,,,,2.5,1.3,2.1") else {
+        panic!("GSA")
+    };
+    let Sentence::Grs(grs) = line("GPGRS,112257.00,1,-0.1,-0.3,7.5,1.2,,,,,,,,") else {
+        panic!("GRS")
+    };
+    assert!(grs.recomputed);
+    let mut set: SatelliteSet = SatelliteSet::new();
+    gsa.apply(&mut set).unwrap();
+    grs.apply(&gsa, &mut set).unwrap();
+    assert_eq!(set.len(), 3);
+    let residual = |number| {
+        set.iter()
+            .find(|view| view.id().number() == number)
+            .and_then(kinavis_kernel::SatelliteView::residual)
+            .map(kinavis_kernel::Distance::metres)
+    };
+    assert_eq!(residual(4), Some(-0.1));
+    assert_eq!(residual(5), Some(-0.3));
+    // The third slot is empty: its residual belongs to nobody.
+    assert_eq!(residual(9), Some(1.2));
+    assert!(set.iter().all(kinavis_kernel::SatelliteView::is_used));
+}
+
+#[test]
+fn zda_dates_the_fix_and_names_the_local_zone() {
+    let Sentence::Zda(zda) = line("INZDA,194104,16,09,2006,-05,00") else {
+        panic!("ZDA")
+    };
+    assert_eq!(
+        format!("{}", zda.instant().unwrap()),
+        "2006-09-16T19:41:04.000 UTC"
+    );
+    assert_eq!(zda.local_zone.unwrap().hours, -5);
+    let Sentence::Zda(empty) = line("GNZDA,213712.000,12,02,2026,,") else {
+        panic!("ZDA")
+    };
+    assert_eq!(empty.local_zone, None);
+    assert!(parse(with_checksum("GPZDA,183531.00,32,12,2007,00,00").as_bytes()).is_err());
 }
