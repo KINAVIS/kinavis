@@ -41,6 +41,9 @@ println!("{} at {:.2} m from the line", passes.pass_at(offset), offset.metres())
   `PathTracker` role; wheelbase, wheel-angle and steering-rate limits; the
   kinematic bicycle. The output is a wheel angle to command, not control of
   the machine.
+- **Estimation without an INS**: `BicycleMotion`, the kinematic bicycle as
+  the `kinavis` estimator's process model, with a log of wheel angles so a
+  late fix is replayed with the angles of its time.
 
 Checked: plane distances against the geodesic and against straight lines
 between points at the field's height (ECEF); the centred plane against PROJ
@@ -49,7 +52,10 @@ numbers at the boundaries between passes; parallel curves against the exact
 offset they stand for, and offsetting there and back; a pass on a side slope
 with a noisy roll sensor; both trackers step for step against PythonRobotics,
 and in closed loop on straight and curved passes and a change of pass at
-working speeds; the same results with `std` and `libm`. `no_std`, no
+working speeds; the bicycle model against fine integration and finite
+differences, and the estimator through a headland turn with six seconds
+without fixes and with a late receiver; the same results with `std` and
+`libm`. `no_std`, no
 allocation.
 
 ## Feature flags

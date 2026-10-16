@@ -5,3 +5,4 @@
 # It is recommended to check this file in to source control so that
 # everyone who runs the test benefits from these saved cases.
 cc 42ebd058b0e4ceeb5124a249d53bacc6fafc034ee6d4aecff26911e62348b845 # shrinks to turns = [-3.821319473050094, 0.0], lengths = [5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0], start = 0.0, k = 2, width = 10.17677385543105
+cc aeb1c64a32de94b4a68576dd14e5b487af85b1ba727e1ed9284e7c95fb4b1875 # shrinks to turns = [0.0, 0.0, -38.95810530967638, -46.838108815663915, 49.13929088397003, 0.0], lengths = [2.0, 2.0, 19.40866839177488, 18.144270091356432, 3.045646381827281, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0], start = 0.0, d = 26.830910121680542

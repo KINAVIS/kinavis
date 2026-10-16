@@ -57,6 +57,10 @@
 //! output is a command, not control: the actuator and its safety are the
 //! caller's.
 //!
+//! Without an inertial system, [`BicycleMotion`] is the process model of the
+//! `kinavis` estimator for a steered machine: fed the wheel angles, it holds
+//! a turn through a gap in the fixes.
+//!
 //! # Accuracy
 //!
 //! The centred plane's scale error is about `x²/2R²` at `x` from its origin:
@@ -87,6 +91,7 @@ extern crate std;
 #[doc = include_str!("../README.md")]
 pub struct ReadmeExamples;
 
+mod bicycle;
 mod curve;
 mod error;
 mod field;
@@ -97,6 +102,7 @@ mod steering;
 mod tilt;
 mod tracker;
 
+pub use bicycle::BicycleMotion;
 pub use curve::{ContourRecorder, CurveLine, MIN_SEGMENT_METRES};
 pub use error::{AgriError, Result};
 pub use field::Field;
