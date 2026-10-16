@@ -32,12 +32,16 @@ for &byte in serial_port {
   `NAV-STATUS`, `NAV-TIMELS` (a `LeapSeconds` table from the receiver).
 - **Sensor fusion**: `ESF-MEAS` (gyroscopes, accelerometers, wheel ticks,
   speed) and `ESF-INS`.
+- **Configuration**: `CFG-VALSET` and `CFG-VALGET` over the configuration
+  database of F9, X20 and M10 receivers, `CFG-RATE` for older ones, written
+  as complete frames into a caller's buffer; the `CFG-VALGET` answer read
+  back. Frames identical byte for byte to pyubx2's.
 - **Raw measurements**: `RXM-RAWX` and `RXM-SFRBX` headers, the measurements
   left as bytes. `ACK-ACK`/`ACK-NAK`.
 
 Checked field by field against pyubx2 on the UBX messages of 29 receiver logs
-of the gpsd project (ZED-F9P, ZED-F9R, X20P, the M8 family); fuzzed. Reading
-only. `no_std`, no allocation, no panics.
+of the gpsd project (ZED-F9P, ZED-F9R, X20P, the M8 family); fuzzed.
+`no_std`, no allocation, no panics.
 
 ## Feature flags
 

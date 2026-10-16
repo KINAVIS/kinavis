@@ -1,5 +1,6 @@
 //! A frame decoded by class and identifier.
 
+use crate::config::{self, CfgValget};
 use crate::error::UbxError;
 use crate::esf::{self, EsfIns, EsfMeas};
 use crate::frame::Frame;
@@ -86,6 +87,8 @@ pub enum Message<'a> {
         /// Identifier of the command.
         id: u8,
     },
+    /// `CFG-VALGET` response.
+    CfgValget(CfgValget<'a>),
     /// `RXM-RAWX`.
     RxmRawx(RxmRawx<'a>),
     /// `RXM-SFRBX`.
@@ -171,6 +174,13 @@ impl<'a> Message<'a> {
                     words: payload.get(8..).unwrap_or(&[]),
                 })
             }
+            (config::CLASS, config::VALGET) => match CfgValget::decode(payload) {
+                Some(answer) => Self::CfgValget(answer),
+                None => Self::Unsupported {
+                    class: frame.class,
+                    id: frame.id,
+                },
+            },
             (class, id) => Self::Unsupported { class, id },
         })
     }
