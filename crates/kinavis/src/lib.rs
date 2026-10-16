@@ -73,11 +73,12 @@
 //! pull in the algorithms depend on the kernel alone.
 //!
 //! - [`angle`] — frame-tagged angles.
-//! - [`units`] — angles, distances, speeds, rate of turn.
+//! - [`units`] — angles, distances, speeds, accelerations, rate of turn.
 //! - [`position`] — latitude, longitude, notation.
 //! - [`time`] — instants with the time scale in the type; leap-second port.
 //! - [`observation`] — a value with its time and quality.
 //! - [`gnss`] — satellite fix.
+//! - [`satellite`] — satellites in view.
 //! - [`geodesy`] — ellipsoids, heights with datum, ECEF, chart datums and their
 //!   transformation to WGS 84.
 //! - [`local`] — NED and other local frames; vectors typed by frame and unit.
@@ -98,7 +99,8 @@
 //!   error.
 //! - [`dead_reckoning`] — DR and EP, traverses, leeway.
 //! - [`fix`] — position lines, fixes, cocked hats, distance off.
-//! - [`relative_motion`] — CPA, radar plotting, avoiding manoeuvre.
+//! - [`relative_motion`] — CPA in the plane and in three dimensions, loss of
+//!   separation, radar plotting, avoiding manoeuvre.
 //! - [`route`] — passage plans: legs, distances, progress along track.
 //! - [`turning`] — leg-to-leg turns: radius or rate of turn, advance and
 //!   transfer, wheel-over point.
@@ -161,8 +163,8 @@ extern crate alloc;
 // Kernel modules under this crate's paths, inlined so the docs show one crate.
 #[doc(inline)]
 pub use kinavis_kernel::{
-    angle, environment, estimation, geodesy, gnss, local, observation, position, snapshot, state,
-    time, units,
+    angle, environment, estimation, geodesy, gnss, local, observation, position, satellite,
+    snapshot, state, time, units,
 };
 
 // Crate-private: numeric primitives and fixed-capacity storage. Public in the
@@ -256,7 +258,10 @@ pub use observations::{
     HeadingObservation, PositionObservation, SpeedThroughWaterObservation, VelocityObservation,
 };
 pub use position::{EastWest, GeocentricUnit, Latitude, Longitude, NorthSouth, Position};
-pub use relative_motion::{Approach, Avoidance, Contact, Cpa, TargetSolution, Vessel};
+pub use relative_motion::{
+    Approach, Approach3, Avoidance, Contact, Cpa, Cpa3, SeparationLoss, SeparationVolume,
+    TargetSolution, Vessel,
+};
 pub use route::{LegCursor, LegKind, Progress, Route, RouteLeg, MAX_WAYPOINTS};
 pub use sailings::{
     Arrival, CrossTrack, Sailing, TrackSide, EARTH_RADIUS, MAX_ITERATIONS_GEODESIC,
