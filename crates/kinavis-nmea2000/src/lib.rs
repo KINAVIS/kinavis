@@ -6,7 +6,9 @@
 //! bus interface, this crate:
 //!
 //! 1. **Parses the identifier** — [`CanId`] — into the [`Pgn`] and source
-//!    address.
+//!    address; both, and [`Frame`], are `kinavis-j1939`'s, as NMEA 2000 is
+//!    built on J1939. The groups of NMEA 2000 are constants of
+//!    [`Nmea2000Pgn`].
 //! 2. **Reassembles fast packets** in an [`Assembler`] with fixed slots and a
 //!    timeout, so a lost frame costs one group, not a slot.
 //! 3. **Decodes** the group into a [`Message`] with kernel field types
@@ -18,7 +20,7 @@
 //! driver, address claim) is the caller's.
 //!
 //! ```rust
-//! use kinavis_nmea2000::{Assembler, CanId, Frame, Message, Pgn};
+//! use kinavis_nmea2000::{Assembler, CanId, Frame, Message, Nmea2000Pgn, Pgn};
 //! use kinavis_kernel::{Instant, Utc};
 //!
 //! let mut assembler = Assembler::new();
@@ -85,7 +87,7 @@ pub use assembler::{Assembler, DEFAULT_TIMEOUT, MAX_ASSEMBLIES};
 pub use error::Nmea2000Error;
 pub use frame::{Frame, Payload, MAX_PAYLOAD_BYTES};
 pub use gnss::{GnssPosition, GnssSystem, Integrity};
-pub use id::{CanId, Pgn, Transport};
+pub use id::{CanId, Nmea2000Pgn, Pgn, Transport};
 pub use message::Message;
 pub use navigation::{CourseAndSpeed, PositionRapidUpdate, Referenced, VesselHeading, WaterDepth};
 

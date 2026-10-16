@@ -2,6 +2,7 @@
 
 use core::fmt;
 
+use kinavis_j1939::J1939Error;
 use kinavis_kernel::KernelError;
 
 use crate::id::Pgn;
@@ -12,16 +13,8 @@ use crate::id::Pgn;
 #[non_exhaustive]
 #[derive(Debug, Clone, PartialEq)]
 pub enum Nmea2000Error {
-    /// Identifier wider than 29 bits.
-    BadCanId {
-        /// Identifier value.
-        raw: u32,
-    },
-    /// Frame with more than 8 data bytes.
-    BadFrameLength {
-        /// Length.
-        len: usize,
-    },
+    /// Identifier or frame refused by `kinavis-j1939`.
+    J1939(J1939Error),
     /// PGN whose transport (single frame or fast packet) is unknown; needs an
     /// explicit transport.
     UnknownPgn {
@@ -68,10 +61,7 @@ pub enum Nmea2000Error {
 impl fmt::Display for Nmea2000Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::BadCanId { raw } => write!(f, "identifier {raw:#x} is wider than 29 bits"),
-            Self::BadFrameLength { len } => {
-                write!(f, "a frame of {len} bytes where at most 8 are possible")
-            }
+            Self::J1939(error) => fmt::Display::fmt(error, f),
             Self::UnknownPgn { pgn } => write!(f, "{pgn} is not a group this crate knows"),
             Self::BadLength { declared, limit } => {
                 write!(f, "fast packet of {declared} bytes declared, limit {limit}")
@@ -91,4 +81,17 @@ impl fmt::Display for Nmea2000Error {
     }
 }
 
-impl core::error::Error for Nmea2000Error {}
+impl From<J1939Error> for Nmea2000Error {
+    fn from(error: J1939Error) -> Self {
+        Self::J1939(error)
+    }
+}
+
+impl core::error::Error for Nmea2000Error {
+    fn source(&self) -> Option<&(dyn core::error::Error + 'static)> {
+        match self {
+            Self::J1939(error) => Some(error),
+            _ => None,
+        }
+    }
+}

@@ -3,7 +3,7 @@
 #![allow(clippy::unwrap_used, clippy::indexing_slicing)]
 
 use kinavis_kernel::{Instant, Utc};
-use kinavis_nmea2000::{Assembler, CanId, Frame, Message, Payload, Pgn, Transport};
+use kinavis_nmea2000::{Assembler, CanId, Frame, Message, Nmea2000Pgn, Payload, Pgn, Transport};
 use proptest::prelude::*;
 
 fn known_pgn() -> impl Strategy<Value = Pgn> {

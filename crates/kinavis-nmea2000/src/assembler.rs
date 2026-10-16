@@ -12,7 +12,7 @@ use kinavis_kernel::time::{Instant, Utc};
 
 use crate::error::Nmea2000Error;
 use crate::frame::{Frame, Payload, MAX_PAYLOAD_BYTES};
-use crate::id::{Pgn, Transport};
+use crate::id::{Nmea2000Pgn, Pgn, Transport};
 
 /// Default number of concurrent fast-packet assemblies.
 ///

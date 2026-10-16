@@ -56,11 +56,14 @@ L1  crates/kinavis                   sailings, deviation, navigation_solutions,
                                      conditions, tides, sun, guidance, turning,
                                      schedule, clearance, composite, anchor, mob
         ↑
-L2  adapters                         crates/kinavis-nmea0183, crates/kinavis-nmea2000,
+L2  adapters                         crates/kinavis-nmea0183, crates/kinavis-j1939,
                                      crates/kinavis-wmm, crates/kinavis-ins —
                                      separate crates, depending on the kernel only;
                                      crates/kinavis-ais — over the kernel and nmea0183
-                                     (the message arrives inside a sentence)
+                                     (the message arrives inside a sentence);
+                                     crates/kinavis-nmea2000, crates/kinavis-isobus —
+                                     over the kernel and j1939 (both are built on
+                                     its frame)
 L2' built on the algorithms          crates/kinavis-traffic, crates/kinavis-colregs
                                      — depend on the kernel and kinavis;
                                      crates/kinavis-agri — also on kinavis-grid, and

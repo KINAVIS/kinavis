@@ -65,9 +65,18 @@ allow = ["kinavis-kernel", "kinavis", "kinavis-traffic", "serde"]
 allow = ["kinavis-kernel", "kinavis-nmea0183", "serde"]
 
 [kinavis-nmea2000]
-# A frame is bytes and the bus is the caller's: the kernel is the one
-# sibling this crate names.
+# A frame is bytes and the bus is the caller's. NMEA 2000 is built on J1939:
+# the identifier and the frame are `kinavis-j1939`'s.
+allow = ["kinavis-kernel", "kinavis-j1939", "serde"]
+
+[kinavis-j1939]
+# The identifier, NAME, address claim and transport of J1939 and ISO 11783-3:
+# bytes and instants, over the kernel only.
 allow = ["kinavis-kernel", "serde"]
+
+[kinavis-isobus]
+# ISO 11783-7 messages, on the J1939 frame.
+allow = ["kinavis-kernel", "kinavis-j1939", "serde"]
 
 [kinavis-ins]
 # An inertial system is a process model and an estimator of its own over

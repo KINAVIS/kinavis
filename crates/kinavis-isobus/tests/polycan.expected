@@ -1,0 +1,22 @@
+# Tally of the PolyCAN logs (14 logs).
+   2489 ISOBUS: ground-based speed, not available
+    287 J1939: address claimed
+     60 J1939: request for PGN 60928
+     15 J1939: request for PGN 65251
+     82 J1939: request for PGN 65253
+     71 J1939: request for PGN 65289
+    105 TP broadcast completed: PGN 65251 (34 bytes)
+     15 TP connection completed: PGN 65251 (34 bytes)
+      1 TP open when the log ends
+    106 TP.CM: BAM
+     15 TP.CM: CTS
+     15 TP.CM: RTS
+     15 TP.CM: end of message
+    600 TP.DT
+ 150630 frames
+      5 distinct sources
+  claim from 0x00: NAME 0x200200000429f556
+  claim from 0x03: NAME 0x200203000430744d
+  claim from 0x06: NAME 0x20000e000430744d
+  claim from 0x17: NAME 0x2002130004246e0c
+  claim from 0x47: NAME 0x200234000430744d

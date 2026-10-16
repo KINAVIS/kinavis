@@ -267,7 +267,9 @@ impl<const N: usize> Polygon<N> {
             };
             right_side && gap >= metres - tolerance
         });
-        if keeps_clear {
+        // Vertices clear are not enough: a skeleton thrown off by rounding
+        // can span a notch of the boundary with one edge.
+        if keeps_clear && !rings_meet(result.vertices(), self.vertices()) {
             Ok(result)
         } else {
             Err(NavigationError::OffsetSplits { distance: metres })
@@ -420,6 +422,12 @@ fn folds_back(shared: [f64; 2], a: [f64; 2], b: [f64; 2]) -> bool {
     let da = sub(a, shared);
     let db = sub(b, shared);
     cross(da, db) == 0.0 && dot(da, db) > 0.0
+}
+
+/// Whether any edge of one ring meets any edge of the other.
+pub(super) fn rings_meet(a: &[PlanarPoint], b: &[PlanarPoint]) -> bool {
+    edges(a)
+        .any(|(a1, a2)| edges(b).any(|(b1, b2)| segments_meet(a1.xy(), a2.xy(), b1.xy(), b2.xy())))
 }
 
 /// Whether two closed segments have a point in common.
@@ -794,5 +802,29 @@ mod tests {
                 .map(|g| g.area().square_metres().round())
         });
         assert_eq!(closed, Ok(Ok(169.0)));
+    }
+
+    #[test]
+    fn an_inset_never_spans_a_notch() {
+        // Found by fuzzing: a sliver over a notch 170 m wide and 150 000 km
+        // long. The notch parts the sliver from the body at once; the
+        // skeleton, past the precision of such coordinates, gave one ring
+        // with every vertex inside but an edge across the notch, larger than
+        // the polygon.
+        let ring = [
+            point(152_318.412, 447_216.004_764_77),
+            point(152_449_298.1, 447_300.0),
+            point(11.82, 447_576.51),
+            point(15_214_214.0, 47_657.451),
+            point(304_284_298.953, 447_040.0),
+        ];
+        let polygon = Polygon::<8>::new(&ring);
+        for distance in [1.0, 17.5, 25.0] {
+            let inset = polygon.as_ref().map(|p| p.inset(metres(distance)));
+            assert!(
+                matches!(inset, Ok(Err(NavigationError::OffsetSplits { .. }))),
+                "{distance} m: {inset:?}"
+            );
+        }
     }
 }

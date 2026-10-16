@@ -6,8 +6,8 @@ use core::time::Duration;
 
 use kinavis_kernel::time::{Instant, Utc};
 use kinavis_nmea2000::{
-    Assembler, CanId, Frame, Nmea2000Error, Pgn, Transport, DEFAULT_TIMEOUT, MAX_ASSEMBLIES,
-    MAX_PAYLOAD_BYTES,
+    Assembler, CanId, Frame, Nmea2000Error, Nmea2000Pgn, Pgn, Transport, DEFAULT_TIMEOUT,
+    MAX_ASSEMBLIES, MAX_PAYLOAD_BYTES,
 };
 
 fn at(seconds: i64) -> Instant<Utc> {
