@@ -1,0 +1,3 @@
+# Proper names in documentation that are not code: `doc_markdown` would ask
+# for backticks. ".." keeps clippy's default list.
+doc-valid-idents = ["GeographicLib", ".."]

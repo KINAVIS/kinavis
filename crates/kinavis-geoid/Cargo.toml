@@ -1,0 +1,36 @@
+[package]
+name = "kinavis-geoid"
+description = "Geoid heights from a global grid, EGM96 embedded, as a geoid model port for the KINAVIS navigation crates, without an allocator."
+documentation = "https://docs.rs/kinavis-geoid"
+readme = "README.md"
+keywords = ["geoid", "egm96", "geodesy", "navigation", "no-std"]
+categories = ["science::geo", "no-std::no-alloc"]
+# Satellite crate, versioned independently of the kernel.
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+homepage.workspace = true
+license.workspace = true
+# The generator and its reference script stay in the repository.
+include = ["src/**", "data/egm96-15.pgm", "tests/**", "README.md", "LICENSE-*"]
+
+[features]
+default = ["std", "egm96"]
+# Standard library floating-point maths.
+std = ["kinavis-kernel/std"]
+# Pure-Rust `libm`, for `no_std` targets.
+libm = ["kinavis-kernel/libm"]
+# Embed the EGM96 15-minute grid (2 MB).
+egm96 = []
+
+[dependencies]
+# Kernel only.
+kinavis-kernel = { workspace = true }
+
+[dev-dependencies]
+proptest = { workspace = true }
+
+[lints]
+workspace = true

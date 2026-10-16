@@ -31,7 +31,7 @@ FEATURES = "libm"
 # is a panic path in the latter and a silently wrong value in the former.
 PROFILES = ["release", "strict"]
 # All shipped crates, innermost first.
-PACKAGES = ["kinavis-kernel", "kinavis", "kinavis-nmea0183", "kinavis-wmm", "kinavis-traffic", "kinavis-colregs", "kinavis-alerts", "kinavis-ais", "kinavis-nmea2000", "kinavis-ins"]
+PACKAGES = ["kinavis-kernel", "kinavis", "kinavis-nmea0183", "kinavis-wmm", "kinavis-geoid", "kinavis-traffic", "kinavis-colregs", "kinavis-alerts", "kinavis-ais", "kinavis-nmea2000", "kinavis-ins"]
 PANIC = re.compile(r"core9panicking")
 DEFINE = re.compile(r"^define\b.*?@(\S+?)\(")
 
