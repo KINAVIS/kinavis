@@ -79,6 +79,11 @@ allow = ["kinavis-kernel", "serde"]
 # its own.
 allow = ["kinavis-kernel"]
 
+[kinavis-ros2]
+# Conversions to the frames of ROS over the kernel only; the nodes and rclrs
+# are in KINAVIS/ros2-kinavis.
+allow = ["kinavis-kernel"]
+
 [kinavis-isobus]
 # ISO 11783-7 messages, on the J1939 frame.
 allow = ["kinavis-kernel", "kinavis-j1939", "serde"]

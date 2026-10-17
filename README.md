@@ -77,6 +77,7 @@ graph BT
     nmea2000[kinavis-nmea2000] --> j1939
     isobus[kinavis-isobus] --> j1939
     mavlink[kinavis-mavlink] --> kernel
+    ros2[kinavis-ros2] --> kernel
     wmm[kinavis-wmm] --> kernel
     ins[kinavis-ins] --> kernel
     ais[kinavis-ais] --> nmea0183
@@ -100,6 +101,7 @@ graph BT
 | [`kinavis-j1939`](https://docs.rs/kinavis-j1939) | SAE J1939 and ISO 11783-3: the 29-bit identifier, NAME and address claim, the transport protocols (BAM, RTS/CTS, ETP) |
 | [`kinavis-isobus`](https://docs.rs/kinavis-isobus) | ISOBUS (ISO 11783-7): wheel-based, ground-based and machine selected speed, the guidance messages |
 | [`kinavis-mavlink`](https://docs.rs/kinavis-mavlink) | MAVLink 2: frames, checksums and signatures, the position, attitude and mission messages of ArduPilot |
+| [`kinavis-ros2`](https://docs.rs/kinavis-ros2) | ROS 2: `NavSatFix`, `Imu`, `Odometry` and `GeoPoint` with the NED/FRD to ENU/FLU conversions and covariances |
 | [`kinavis-wmm`](https://docs.rs/kinavis-wmm) | the World Magnetic Model 2025: magnetic variation at any position |
 | [`kinavis-geoid`](https://docs.rs/kinavis-geoid) | geoid heights from a global grid, EGM96 embedded: heights above the ellipsoid to heights above mean sea level |
 | [`kinavis-grid`](https://docs.rs/kinavis-grid) | map grids: transverse Mercator, UTM/UPS, MGRS, Gauss–Krüger zones (СК-42, СК-95, ГСК-2011) and national grids, grid north |

@@ -66,6 +66,7 @@ build on top of it, each `no_std` and without an allocator:
 | [`kinavis-j1939`](https://crates.io/crates/kinavis-j1939) | SAE J1939 and ISO 11783-3: the 29-bit identifier, NAME and address claim, the transport protocols (BAM, RTS/CTS, ETP) |
 | [`kinavis-isobus`](https://crates.io/crates/kinavis-isobus) | ISOBUS (ISO 11783-7): wheel-based, ground-based and machine selected speed, the guidance messages |
 | [`kinavis-mavlink`](https://crates.io/crates/kinavis-mavlink) | MAVLink 2: frames, checksums and signatures, the position, attitude and mission messages of ArduPilot |
+| [`kinavis-ros2`](https://crates.io/crates/kinavis-ros2) | ROS 2: `NavSatFix`, `Imu`, `Odometry` and `GeoPoint` with the NED/FRD to ENU/FLU conversions and covariances |
 | [`kinavis-wmm`](https://crates.io/crates/kinavis-wmm) | the World Magnetic Model 2025: magnetic variation at any position |
 | [`kinavis-geoid`](https://crates.io/crates/kinavis-geoid) | geoid heights from a global grid, EGM96 embedded: heights above the ellipsoid to heights above mean sea level |
 | [`kinavis-grid`](https://crates.io/crates/kinavis-grid) | map grids: transverse Mercator, UTM/UPS, MGRS, Gauss–Krüger zones (СК-42, СК-95, ГСК-2011) and national grids, grid north |
