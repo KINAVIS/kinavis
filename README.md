@@ -56,8 +56,9 @@ on:
 
 ## See it run
 
-Five demonstrations in [`examples/`](examples/), each on data recorded from
-real equipment: gpsd's receiver logs and a Signal K AIS recording.
+Six demonstrations in [`examples/`](examples/), each on data recorded from
+real equipment: gpsd's receiver logs, a Signal K AIS recording and a
+tractor's log from TUM.
 
 | Demonstration | What it shows |
 |---|---|
@@ -65,6 +66,7 @@ real equipment: gpsd's receiver logs and a Signal K AIS recording.
 | `gnss_jump` | a yacht's track with one fix moved forty miles: `REFUSED  implausible jump: 144094 kn implied` |
 | `traffic` | 1459 AIS messages off Harlingen decoded; CPA and TCPA of every ship against one of them |
 | `course_to_steer` | the same yacht against a passage plan: cross-track error and the cross-track alarm |
+| `field` | a Fendt 820's twelve passes: the AB line, the implement found 0.74 m to the side of the logged position, coverage with and without it, headland turns that back up |
 | `integrity` | a u-blox NEO-M8P's UBX: the fix with the receiver's accuracy, RAIM finding a 40 m error injected into one satellite, the position on UTM, MGRS and СК-42, the height by EGM96 |
 
 ```sh

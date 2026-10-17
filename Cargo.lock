@@ -96,6 +96,7 @@ name = "kinavis-examples"
 version = "0.0.0"
 dependencies = [
  "kinavis",
+ "kinavis-agri",
  "kinavis-ais",
  "kinavis-geoid",
  "kinavis-grid",
