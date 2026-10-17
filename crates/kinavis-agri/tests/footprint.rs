@@ -29,6 +29,10 @@ fn planes_lines_and_trackers_stay_small() {
     within::<kinavis_agri::PurePursuit>(40);
     within::<kinavis_agri::Stanley>(16);
     within::<kinavis_agri::TurnPath>(384);
+    // Two bits a cell: a 500 m square at 25 cm is 1 MB.
+    within::<kinavis_agri::CoverageGrid<32, 2000>>(1_024_400);
+    within::<kinavis_agri::Boom<16>>(152);
+    within::<kinavis_agri::SectionControl>(24);
     // 24 bytes an angle: instant and curvature.
     within::<kinavis_agri::BicycleMotion<64>>(1600);
 }

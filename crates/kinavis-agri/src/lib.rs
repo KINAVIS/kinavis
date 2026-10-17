@@ -65,6 +65,13 @@
 //! drive it, and [`TurnPath::first_conflict`] checks it against the field
 //! for a machine of a given width.
 //!
+//! # Coverage
+//!
+//! [`CoverageGrid`] is a two-bit raster of the field plane: worked, worked
+//! again. Each step marks the strip the sections of a [`Boom`] that are on
+//! swept; [`SectionControl`] switches sections off ahead of worked ground and
+//! the field's edge, and on past them, by the valves' delays.
+//!
 //! Without an inertial system, [`BicycleMotion`] is the process model of the
 //! `kinavis` estimator for a steered machine: fed the wheel angles, it holds
 //! a turn through a gap in the fixes.
@@ -100,6 +107,7 @@ extern crate std;
 pub struct ReadmeExamples;
 
 mod bicycle;
+mod coverage;
 mod curve;
 mod error;
 mod field;
@@ -112,6 +120,7 @@ mod tracker;
 mod turn;
 
 pub use bicycle::BicycleMotion;
+pub use coverage::{Boom, CoverageGrid, Marked, SectionControl};
 pub use curve::{ContourRecorder, CurveLine, MIN_SEGMENT_METRES};
 pub use error::{AgriError, Result};
 pub use field::Field;
