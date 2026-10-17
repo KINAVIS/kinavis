@@ -1,0 +1,19 @@
+tum-fendt820-field5.csv
+
+Source:  "Agricultural Load Cycles: Tractor Mission Profiles From Recorded
+         Gnss and Can Bus Data", Korbinian Götz, Technical University of
+         Munich, 2025. Zenodo, doi:10.5281/zenodo.14619787,
+         https://zenodo.org/records/14619787
+
+License: Creative Commons Attribution 4.0 International (CC BY 4.0),
+         https://creativecommons.org/licenses/by/4.0/
+
+Changes: an excerpt. Data rows 17912 to 26121 (counted from 0) of
+         "Fendt 820 - Kopie/Cultivating (deep)/Field_5.csv" in the archive
+         "Fendt 820.zip"; of its 26 columns, five kept: time (restarted at
+         zero), latitude, longitude, wheel-based machine speed and the rear
+         hitch in-work indication (as 0 or 1). The speed is rounded to
+         1 mm/s; the other values are as recorded.
+
+The excerpt is distributed under the same license, CC BY 4.0. It is not
+covered by the MIT or Apache-2.0 license of KINAVIS.
