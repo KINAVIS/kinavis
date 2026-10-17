@@ -31,13 +31,19 @@ proptest! {
     ) {
         let gridded = UtmUps::from_position(Position::from_degrees(latitude, longitude).expect("on Earth"))
             .expect("UTM");
-        let UtmUps::Utm { hemisphere, easting, .. } = gridded.coordinate else {
+        let UtmUps::Utm { zone, hemisphere, easting, .. } = gridded.coordinate else {
             return Err(TestCaseError::fail("UTM expected"));
         };
         prop_assert_eq!(hemisphere == Hemisphere::North, latitude >= 0.0);
-        // A standard zone keeps the easting within 3° and a bit of the
-        // central meridian.
-        prop_assert!((160_000.0..=840_000.0).contains(&easting.metres()));
+        // A standard zone holds 3° either side of its central meridian; the
+        // zones widened for Norway (32V) and Svalbard (31X–37X) reach 6°.
+        let off = kinavis_kernel::wrap180(longitude - zone.central_meridian()).abs();
+        let half = if off <= 3.0 { 3.0 } else { 6.0 };
+        prop_assert!(off <= half, "{off}° from the central meridian of zone {}", zone.number());
+        // The easting within that, at the parallel's radius and a little
+        // more for the projection's growth away from the meridian.
+        let reach = 1.01 * 0.9996 * 6_378_137.0 * latitude.to_radians().cos() * half.to_radians();
+        prop_assert!((easting.metres() - 500_000.0).abs() <= reach, "easting {}", easting.metres());
     }
 
     #[test]

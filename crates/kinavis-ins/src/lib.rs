@@ -11,8 +11,8 @@
 //!    attitude, gyro bias, accelerometer bias errors) estimated from available
 //!    aiding — GNSS position or velocity, heading, zero-velocity — and fed back
 //!    into the mechanisation to bound drift. On land also: an antenna at a
-//!    lever arm, the wheel speed, the non-holonomic constraint and the heading
-//!    of a two-antenna baseline.
+//!    lever arm, the wheel speed and the non-holonomic constraint at the
+//!    point they hold for, and the heading of a two-antenna baseline.
 //!
 //! Outputs are kernel types: [`Position`], a [`Vector3`] of [`Speed`], an
 //! [`Attitude`] with yaw as [`TrueCourse`], plus sigmas and the error ellipse;

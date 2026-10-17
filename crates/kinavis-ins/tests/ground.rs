@@ -8,7 +8,9 @@
 //! constraint at 5 Hz, the IMU at 10 Hz. NEES over the 15 states follows
 //! χ²(15) and the fix's NIS χ²(3) — in the field with RTK, and through a
 //! 30 s outage carried by the wheels; without the wheels the same outage
-//! drifts many times further. The wheels once more as a dead-reckoning
+//! drifts many times further. With the IMU in the cab 2 m ahead of the
+//! axle, the wheels and the constraint are held at the axle: taken at the
+//! IMU, a U-turn reads as sideslip. The wheels once more as a dead-reckoning
 //! receiver passes them on: the rear wheels' ticks in UBX `ESF-MEAS` frames,
 //! read back by `kinavis-ubx`'s odometer, carry the same outage as well.
 
@@ -161,7 +163,10 @@ fn roll(second: f64) -> (f64, f64) {
 }
 
 struct Truth {
+    /// Middle of the rear axle, the point the tractor turns about.
     position: [f64; 3],
+    /// IMU ahead of the axle, metres.
+    ahead: f64,
     /// Travel of the rear wheels, left and right, metres.
     wheels: [f64; 2],
     heading: f64,
@@ -183,8 +188,33 @@ impl Truth {
         [SPEED * self.heading.cos(), SPEED * self.heading.sin(), 0.0]
     }
 
+    /// Body rate against the local level, rad/s: roll rate and yaw rate.
+    fn body_rate(&self) -> [f64; 3] {
+        let rate = yaw_rate(self.second);
+        let (phi, phi_rate) = roll(self.second);
+        [phi_rate, rate * phi.sin(), rate * phi.cos()]
+    }
+
+    /// Velocity of the IMU over that of the axle, NED: the turn sweeping it
+    /// round.
+    fn swept(&self) -> [f64; 3] {
+        self.attitude()
+            .rotate(cross(self.body_rate(), [self.ahead, 0.0, 0.0]))
+    }
+
+    fn imu_position(&self) -> [f64; 3] {
+        add(
+            self.position,
+            self.attitude().rotate([self.ahead, 0.0, 0.0]),
+        )
+    }
+
+    fn imu_velocity(&self) -> [f64; 3] {
+        add(self.velocity(), self.swept())
+    }
+
     fn antenna(&self) -> [f64; 3] {
-        add(self.position, self.attitude().rotate(LEVER))
+        add(self.imu_position(), self.attitude().rotate(LEVER))
     }
 
     fn latitude(&self) -> f64 {
@@ -206,13 +236,14 @@ impl Truth {
         // Heading, velocity and attitude at the middle of the interval too.
         let middle = Truth {
             position: self.position,
+            ahead: self.ahead,
             wheels: self.wheels,
             heading: self.heading + rate * dt / 2.0,
             gyro_bias: self.gyro_bias,
             accel_bias: self.accel_bias,
             second: self.second + dt / 2.0,
         };
-        let velocity = middle.velocity();
+        let velocity = middle.imu_velocity();
         let transport = [
             velocity[1] / 6_371_000.0,
             -velocity[0] / 6_371_000.0,
@@ -227,6 +258,19 @@ impl Truth {
             add([2.0 * earth[0], 0.0, 2.0 * earth[2]], transport),
             velocity,
         );
+        // The IMU's own acceleration over the axle's: the change of its swept
+        // velocity over the interval, turns begun or ended within it included.
+        let after = Truth {
+            position: self.position,
+            ahead: self.ahead,
+            wheels: self.wheels,
+            heading: self.heading + rate * dt,
+            gyro_bias: self.gyro_bias,
+            accel_bias: self.accel_bias,
+            second: self.second + dt,
+        };
+        let swept = sub(after.swept(), self.swept());
+        let acceleration = add(acceleration, [swept[0] / dt, swept[1] / dt, swept[2] / dt]);
         let force_n = add(
             add(acceleration, [0.0, 0.0, -gravity_down(latitude.sin(), 0.0)]),
             coriolis,
@@ -299,6 +343,11 @@ enum Wheels {
 struct Setup {
     wheels: Wheels,
     outage: Option<Range<usize>>,
+    /// IMU ahead of the rear axle, metres.
+    ahead: f64,
+    /// Whether the wheels and the constraint are held at the axle, or taken
+    /// at the IMU as if it sat over the axle.
+    at_the_axle: bool,
 }
 
 /// A UBX frame of `ESF-MEAS` with the rear wheels' tick counts. The counts
@@ -344,6 +393,7 @@ fn run(seed: u64, setup: &Setup, summary: &mut Summary) {
     )
     .unwrap();
     let mut truth = Truth {
+        ahead: setup.ahead,
         wheels: [0.0; 2],
         position: [
             10.0 * rng.normal(),
@@ -361,7 +411,7 @@ fn run(seed: u64, setup: &Setup, summary: &mut Summary) {
         1.0_f64.to_radians() * rng.normal(),
         3.0_f64.to_radians() * rng.normal(),
     ];
-    let nominal_velocity = sub(truth.velocity(), velocity_error);
+    let nominal_velocity = sub(truth.imu_velocity(), velocity_error);
     let nominal = Strapdown::new(
         start,
         origin,
@@ -381,6 +431,13 @@ fn run(seed: u64, setup: &Setup, summary: &mut Summary) {
         Distance::from_metres(LEVER[2]).unwrap(),
     );
 
+    // The middle of the rear axle from the IMU, or the IMU itself.
+    let behind = if setup.at_the_axle { -setup.ahead } else { 0.0 };
+    let axle = Vector3::<Body, Distance>::new(
+        Distance::from_metres(behind).unwrap(),
+        Distance::ZERO,
+        Distance::ZERO,
+    );
     for tick in 1..=SECONDS * IMU_HZ {
         let sample = truth.step(dt, &noise, &mut rng);
         filter.predict(&sample).unwrap();
@@ -409,18 +466,20 @@ fn run(seed: u64, setup: &Setup, summary: &mut Summary) {
             };
             if let Some(measured) = measured {
                 filter
-                    .update_wheel_speed(
+                    .update_wheel_speed_at(
                         measured,
                         1.0,
                         Speed::from_metres_per_second(sigma).unwrap(),
+                        axle,
                         GatingPolicy::none(),
                     )
                     .unwrap();
             }
             filter
-                .update_non_holonomic(
+                .update_non_holonomic_at(
                     Speed::from_metres_per_second(NHC_SIGMA).unwrap(),
                     Speed::from_metres_per_second(NHC_SIGMA).unwrap(),
+                    axle,
                     GatingPolicy::none(),
                 )
                 .unwrap();
@@ -459,7 +518,7 @@ fn run(seed: u64, setup: &Setup, summary: &mut Summary) {
         }
         if let Some(outage) = &setup.outage {
             if tick % IMU_HZ == 0 && second + 1 == outage.end {
-                let error = sub(truth.position, ned(&filter));
+                let error = sub(truth.imu_position(), ned(&filter));
                 summary.outage_error += error[0].hypot(error[1]);
                 summary.outage_ellipse += filter.horizontal_error().semi_major().metres();
             }
@@ -477,10 +536,10 @@ fn ned(filter: &InsFilter) -> [f64; 3] {
 }
 
 fn nees(filter: &InsFilter, truth: &Truth) -> f64 {
-    let position = sub(truth.position, ned(filter));
+    let position = sub(truth.imu_position(), ned(filter));
     let velocity = filter.velocity();
     let velocity = sub(
-        truth.velocity(),
+        truth.imu_velocity(),
         [
             velocity.north().metres_per_second(),
             velocity.east().metres_per_second(),
@@ -545,6 +604,8 @@ fn in_the_field_with_rtk_the_filter_is_consistent() {
         &Setup {
             wheels: Wheels::Speed,
             outage: None,
+            ahead: 0.0,
+            at_the_axle: true,
         },
         11,
     );
@@ -558,6 +619,8 @@ fn through_thirty_seconds_without_gnss_the_wheels_carry_it() {
         &Setup {
             wheels: Wheels::Speed,
             outage: Some(outage.clone()),
+            ahead: 0.0,
+            at_the_axle: true,
         },
         21,
     );
@@ -566,6 +629,8 @@ fn through_thirty_seconds_without_gnss_the_wheels_carry_it() {
         &Setup {
             wheels: Wheels::None,
             outage: Some(outage),
+            ahead: 0.0,
+            at_the_axle: true,
         },
         21,
     );
@@ -591,6 +656,8 @@ fn the_wheel_ticks_of_esf_meas_carry_the_same_outage() {
         &Setup {
             wheels: Wheels::Ticks,
             outage: Some(outage.clone()),
+            ahead: 0.0,
+            at_the_axle: true,
         },
         21,
     );
@@ -599,6 +666,8 @@ fn the_wheel_ticks_of_esf_meas_carry_the_same_outage() {
         &Setup {
             wheels: Wheels::None,
             outage: Some(outage),
+            ahead: 0.0,
+            at_the_axle: true,
         },
         21,
     );
@@ -615,5 +684,34 @@ fn the_wheel_ticks_of_esf_meas_carry_the_same_outage() {
     assert!(
         without_error > 10.0 * ticks_error,
         "{without_error} without against {ticks_error} with the ticks"
+    );
+}
+
+#[test]
+fn an_imu_ahead_of_the_axle_holds_the_wheels_at_the_axle() {
+    // An outage over a U-turn, the IMU in the cab 2 m ahead of the axle.
+    let outage = 125..155;
+    let setup = |at_the_axle| Setup {
+        wheels: Wheels::Speed,
+        outage: Some(outage.clone()),
+        ahead: 2.0,
+        at_the_axle,
+    };
+    let held = summarise(&setup(true), 31);
+    assert_consistent(&held, "IMU ahead, wheels at the axle");
+    let taken = summarise(&setup(false), 31);
+    let (held_error, taken_error) = (
+        held.outage_error / RUNS as f64,
+        taken.outage_error / RUNS as f64,
+    );
+    assert!(
+        held_error < 3.0 * held.outage_ellipse / RUNS as f64,
+        "error {held_error} against the ellipse"
+    );
+    // 5 cm held at the axle; taken at the IMU, the turn reads as 0.8 m/s of
+    // sideslip and the outage ends 3 m off.
+    assert!(
+        taken_error > 5.0 * held_error,
+        "{taken_error} at the IMU against {held_error} at the axle"
     );
 }
