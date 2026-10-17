@@ -30,6 +30,8 @@ kinavis-kernel = { workspace = true }
 serde = { workspace = true, optional = true }
 
 [dev-dependencies]
+# The wheel ticks of a dead-reckoning receiver, end to end in the ground test.
+kinavis-ubx = { version = "0.1.0", path = "../kinavis-ubx" }
 proptest = { workspace = true }
 serde_json = { workspace = true }
 

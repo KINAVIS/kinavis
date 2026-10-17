@@ -6,7 +6,7 @@ readme = "README.md"
 keywords = ["ublox", "ubx", "gnss", "rtk", "no-std"]
 categories = ["science::geo", "no-std::no-alloc", "parser-implementations"]
 # Satellite crate, versioned independently of the kernel.
-version = "0.1.0"
+version = "0.1.1"
 authors.workspace = true
 edition.workspace = true
 rust-version.workspace = true

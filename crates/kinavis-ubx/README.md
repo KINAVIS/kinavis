@@ -31,7 +31,9 @@ for &byte in serial_port {
   `NAV-SAT` (to a kernel `SatelliteSet` with residuals), `NAV-DOP`,
   `NAV-STATUS`, `NAV-TIMELS` (a `LeapSeconds` table from the receiver).
 - **Sensor fusion**: `ESF-MEAS` (gyroscopes, accelerometers, wheel ticks,
-  speed) and `ESF-INS`.
+  speed) and `ESF-INS`; an odometer that turns the wheel ticks into speed
+  (one wheel, the rear axle's middle, a speed sensor), through the counts'
+  and the time tag's wrap, for an inertial filter's wheel-speed update.
 - **Configuration**: `CFG-VALSET` and `CFG-VALGET` over the configuration
   database of F9, X20 and M10 receivers, `CFG-RATE` for older ones, written
   as complete frames into a caller's buffer; the `CFG-VALGET` answer read

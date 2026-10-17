@@ -20,3 +20,8 @@ fn messages_stay_small_and_the_deframer_is_its_buffer() {
     // N bytes of payload and a few words of state.
     within::<kinavis_ubx::Deframer<1024>>(1024 + 32);
 }
+
+#[test]
+fn the_odometer_is_a_few_words() {
+    within::<kinavis_ubx::Odometer>(40);
+}

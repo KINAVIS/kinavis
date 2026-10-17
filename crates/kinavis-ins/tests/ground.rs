@@ -8,7 +8,9 @@
 //! constraint at 5 Hz, the IMU at 10 Hz. NEES over the 15 states follows
 //! χ²(15) and the fix's NIS χ²(3) — in the field with RTK, and through a
 //! 30 s outage carried by the wheels; without the wheels the same outage
-//! drifts many times further.
+//! drifts many times further. The wheels once more as a dead-reckoning
+//! receiver passes them on: the rear wheels' ticks in UBX `ESF-MEAS` frames,
+//! read back by `kinavis-ubx`'s odometer, carry the same outage as well.
 
 #![allow(
     clippy::unwrap_used,
@@ -16,7 +18,8 @@
     clippy::cast_precision_loss,
     clippy::indexing_slicing,
     clippy::too_many_lines,
-    clippy::cast_possible_truncation
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss
 )]
 
 use core::ops::Range;
@@ -31,6 +34,7 @@ use kinavis_kernel::{
     Angle, Body, Distance, GeodeticPoint, Height, Instant, Ned, Position, Speed, TrueCourse, Utc,
     Vector3,
 };
+use kinavis_ubx::{Deframer, Event, Message, Odometer, SpeedSource};
 
 // ---------------------------------------------------------------- randomness
 
@@ -106,6 +110,11 @@ const RTK_SIGMA: f64 = 0.02;
 const RTK_HEIGHT_SIGMA: f64 = 0.04;
 const WHEEL_SIGMA: f64 = 0.02;
 const NHC_SIGMA: f64 = 0.03;
+/// Wheel ticks: 5 mm of travel a tick, rear track 1.8 m. The speed from two
+/// counts 200 ms apart is quantised to 25 mm/s: about 7 mm/s of noise.
+const TICK: f64 = 0.005;
+const TRACK: f64 = 1.8;
+const TICK_SIGMA: f64 = 0.01;
 const LEVER: [f64; 3] = [0.6, 0.0, -3.1];
 
 fn add(a: [f64; 3], b: [f64; 3]) -> [f64; 3] {
@@ -153,6 +162,8 @@ fn roll(second: f64) -> (f64, f64) {
 
 struct Truth {
     position: [f64; 3],
+    /// Travel of the rear wheels, left and right, metres.
+    wheels: [f64; 2],
     heading: f64,
     gyro_bias: [f64; 3],
     accel_bias: [f64; 3],
@@ -195,6 +206,7 @@ impl Truth {
         // Heading, velocity and attitude at the middle of the interval too.
         let middle = Truth {
             position: self.position,
+            wheels: self.wheels,
             heading: self.heading + rate * dt / 2.0,
             gyro_bias: self.gyro_bias,
             accel_bias: self.accel_bias,
@@ -239,6 +251,9 @@ impl Truth {
             ),
         );
         let before = self.velocity();
+        // The rear axle's middle runs at SPEED; a turn speeds the outer wheel.
+        self.wheels[0] += (SPEED + rate * TRACK / 2.0) * dt;
+        self.wheels[1] += (SPEED - rate * TRACK / 2.0) * dt;
         self.heading += rate * dt;
         self.second += dt;
         let after = self.velocity();
@@ -272,9 +287,43 @@ struct Summary {
     outage_ellipse: f64,
 }
 
+#[derive(Clone, Copy, PartialEq)]
+enum Wheels {
+    None,
+    /// The wheel speed as a number, with noise.
+    Speed,
+    /// The rear wheels' ticks in `ESF-MEAS` frames.
+    Ticks,
+}
+
 struct Setup {
-    wheels: bool,
+    wheels: Wheels,
     outage: Option<Range<usize>>,
+}
+
+/// A UBX frame of `ESF-MEAS` with the rear wheels' tick counts. The counts
+/// start 3000 ticks short of their 2²³ wrap and the time tag 20 s short of
+/// its 2³² wrap, so both wrap within the run.
+fn esf_meas(truth: &Truth, tick: usize) -> Vec<u8> {
+    let count = |metres: f64| {
+        let ticks = (metres / TICK).floor() as u32;
+        ((1 << 23) - 3000 + ticks) & 0x007F_FFFF
+    };
+    let time_tag = (u32::MAX - 20_000).wrapping_add(tick as u32 * 100);
+    let mut payload = Vec::new();
+    payload.extend_from_slice(&time_tag.to_le_bytes());
+    payload.extend_from_slice(&(2u16 << 11).to_le_bytes());
+    payload.extend_from_slice(&0u16.to_le_bytes());
+    // Data types 8 and 9: rear left, rear right; forward.
+    for (data_type, metres) in [(8u32, truth.wheels[0]), (9, truth.wheels[1])] {
+        payload.extend_from_slice(&((data_type << 24) | count(metres)).to_le_bytes());
+    }
+    let (a, b) = kinavis_ubx::checksum(0x10, 0x02, &payload);
+    let mut frame = vec![kinavis_ubx::SYNC_1, kinavis_ubx::SYNC_2, 0x10, 0x02];
+    frame.extend_from_slice(&(payload.len() as u16).to_le_bytes());
+    frame.extend_from_slice(&payload);
+    frame.extend_from_slice(&[a, b]);
+    frame
 }
 
 fn run(seed: u64, setup: &Setup, summary: &mut Summary) {
@@ -287,7 +336,15 @@ fn run(seed: u64, setup: &Setup, summary: &mut Summary) {
         Position::from_degrees(LATITUDE, 5.6).unwrap(),
         Height::above_ellipsoid(Distance::ZERO),
     );
+    let mut deframer: Deframer<256> = Deframer::new();
+    let mut odometer = Odometer::new(
+        SpeedSource::RearAxle,
+        Distance::from_metres(TICK).unwrap(),
+        Duration::from_millis(500),
+    )
+    .unwrap();
     let mut truth = Truth {
+        wheels: [0.0; 2],
         position: [
             10.0 * rng.normal(),
             10.0 * rng.normal(),
@@ -332,16 +389,34 @@ fn run(seed: u64, setup: &Setup, summary: &mut Summary) {
             .outage
             .as_ref()
             .is_some_and(|outage| outage.contains(&second));
-        if setup.wheels && tick % 2 == 0 {
-            let measured = SPEED + WHEEL_SIGMA * rng.normal();
-            filter
-                .update_wheel_speed(
-                    Speed::from_metres_per_second(measured).unwrap(),
-                    1.0,
-                    Speed::from_metres_per_second(WHEEL_SIGMA).unwrap(),
-                    GatingPolicy::none(),
+        if setup.wheels != Wheels::None && tick % 2 == 0 {
+            let (measured, sigma) = if setup.wheels == Wheels::Speed {
+                let speed = SPEED + WHEEL_SIGMA * rng.normal();
+                (
+                    Some(Speed::from_metres_per_second(speed).unwrap()),
+                    WHEEL_SIGMA,
                 )
-                .unwrap();
+            } else {
+                let mut speed = None;
+                for byte in esf_meas(&truth, tick) {
+                    if let Some(Event::Frame(frame)) = deframer.push(byte) {
+                        if let Ok(Message::EsfMeas(meas)) = Message::decode(&frame) {
+                            speed = odometer.push(&meas).map(|reading| reading.speed);
+                        }
+                    }
+                }
+                (speed, TICK_SIGMA)
+            };
+            if let Some(measured) = measured {
+                filter
+                    .update_wheel_speed(
+                        measured,
+                        1.0,
+                        Speed::from_metres_per_second(sigma).unwrap(),
+                        GatingPolicy::none(),
+                    )
+                    .unwrap();
+            }
             filter
                 .update_non_holonomic(
                     Speed::from_metres_per_second(NHC_SIGMA).unwrap(),
@@ -468,7 +543,7 @@ fn assert_consistent(summary: &Summary, label: &str) {
 fn in_the_field_with_rtk_the_filter_is_consistent() {
     let summary = summarise(
         &Setup {
-            wheels: true,
+            wheels: Wheels::Speed,
             outage: None,
         },
         11,
@@ -481,7 +556,7 @@ fn through_thirty_seconds_without_gnss_the_wheels_carry_it() {
     let outage = 150..180;
     let with = summarise(
         &Setup {
-            wheels: true,
+            wheels: Wheels::Speed,
             outage: Some(outage.clone()),
         },
         21,
@@ -489,7 +564,7 @@ fn through_thirty_seconds_without_gnss_the_wheels_carry_it() {
     assert_consistent(&with, "outage with the wheels");
     let without = summarise(
         &Setup {
-            wheels: false,
+            wheels: Wheels::None,
             outage: Some(outage),
         },
         21,
@@ -506,5 +581,39 @@ fn through_thirty_seconds_without_gnss_the_wheels_carry_it() {
     assert!(
         without_error > 10.0 * with_error,
         "{without_error} without against {with_error} with"
+    );
+}
+
+#[test]
+fn the_wheel_ticks_of_esf_meas_carry_the_same_outage() {
+    let outage = 150..180;
+    let ticks = summarise(
+        &Setup {
+            wheels: Wheels::Ticks,
+            outage: Some(outage.clone()),
+        },
+        21,
+    );
+    assert_consistent(&ticks, "outage with the wheel ticks");
+    let without = summarise(
+        &Setup {
+            wheels: Wheels::None,
+            outage: Some(outage),
+        },
+        21,
+    );
+    let (ticks_error, without_error) = (
+        ticks.outage_error / RUNS as f64,
+        without.outage_error / RUNS as f64,
+    );
+    assert!(
+        ticks_error < 3.0 * ticks.outage_ellipse / RUNS as f64,
+        "error {ticks_error} against the ellipse"
+    );
+    // 6.6 cm from the ticks, as from the speed with its noise (7 cm),
+    // against 1.7 m without the wheels.
+    assert!(
+        without_error > 10.0 * ticks_error,
+        "{without_error} without against {ticks_error} with the ticks"
     );
 }

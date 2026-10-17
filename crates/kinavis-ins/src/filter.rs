@@ -625,6 +625,8 @@ impl InsFilter {
     /// (ADR-0021): a 1 % error at 2.5 m/s is 2.5 cm/s, 0.75 m over 30 s
     /// without GNSS. The odometer is taken to read at the IMU; mount the IMU
     /// over the rear axle, or the turn adds `ω × l` across the reading.
+    /// From a dead-reckoning u-blox receiver, `kinavis-ubx`'s `Odometer`
+    /// turns the wheel ticks of `ESF-MEAS` into this speed.
     ///
     /// # Errors
     ///

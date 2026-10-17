@@ -32,6 +32,8 @@
 //!
 //! 4. **Configuration**: [`config`] writes `CFG-VALSET`, `CFG-VALGET` and
 //!    `CFG-RATE` frames into a caller's buffer and reads the answer.
+//! 5. **Odometry**: [`Odometer`] turns the wheel ticks of `ESF-MEAS` into
+//!    speed for an inertial filter's wheel-speed update.
 //!
 //! No allocation, no panics; builds for bare-metal targets.
 //!
@@ -58,6 +60,7 @@ pub mod esf;
 mod frame;
 mod message;
 pub mod nav;
+mod odometer;
 mod read;
 
 pub use config::{CfgValget, ConfigError, ConfigKey, Layers, PollLayer, TimeReference};
@@ -69,3 +72,4 @@ pub use nav::{
     CarrierSolution, NavDop, NavHpposllh, NavPvt, NavRelposned, NavSat, NavStatus, NavTimels,
     PvtFix, ReceiverLeapSeconds, SatInfo,
 };
+pub use odometer::{Odometer, SpeedSource, WheelSpeed};
