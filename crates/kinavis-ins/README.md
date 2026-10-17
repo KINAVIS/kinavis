@@ -13,14 +13,16 @@ an IMU and a 15-state error-state Kalman filter.
 - On land: the fix of an antenna at a lever arm (a mast leaning with the
   machine corrects the tilt), the wheel speed with a calibrated odometer
   scale, the non-holonomic constraint (no sideways or vertical body
-  velocity), and the heading of a two-antenna baseline with its length
-  checked.
+  velocity), both at the point they hold for (the rear axle, with the IMU
+  in the cab: `v + ω × l`), and the heading of a two-antenna baseline with
+  its length checked.
 - `InsMotion` — the INS as a process model for the six-state estimator in
   `kinavis`.
 - No allocation, no panics. Filter consistency verified by Monte Carlo tests:
   NEES and NIS within χ² intervals, at sea and for a tractor in a field with
   RTK, U-turns and a 30 s loss of GNSS carried by the wheels (7 cm of drift,
-  against 1.7 m without them).
+  against 1.7 m without them; 5 cm over a U-turn with the IMU 2 m ahead of
+  the axle, against 3 m with the wheels taken at the IMU).
 
 ```rust
 use core::time::Duration;

@@ -6,7 +6,7 @@ readme = "README.md"
 keywords = ["inertial-navigation", "imu", "kalman", "sensor-fusion", "no-std"]
 categories = ["science", "no-std::no-alloc", "algorithms"]
 # Satellite crate, versioned independently of the kernel.
-version = "0.2.0"
+version = "0.2.1"
 authors.workspace = true
 edition.workspace = true
 rust-version.workspace = true

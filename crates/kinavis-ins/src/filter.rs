@@ -27,7 +27,7 @@ use kinavis_kernel::snapshot::ErrorEllipse;
 use kinavis_kernel::time::{Instant, Utc};
 use kinavis_kernel::units::{Angle, Distance, Speed};
 
-use crate::attitude::{skew, Attitude, Quaternion};
+use crate::attitude::{cross, skew, Attitude, Quaternion};
 use crate::imu::{ImuNoise, ImuSample};
 use crate::mechanisation::Strapdown;
 
@@ -211,6 +211,10 @@ pub struct InsUpdate {
     pub accepted: bool,
 }
 
+/// A point of the body at the IMU.
+const AT_THE_IMU: Vector3<Body, Distance> =
+    Vector3::new(Distance::ZERO, Distance::ZERO, Distance::ZERO);
+
 /// Inertial navigation filter: a [`Strapdown`] mechanisation with its 15-state
 /// error filter.
 #[derive(Debug, Clone)]
@@ -218,6 +222,9 @@ pub struct InsFilter {
     nominal: Strapdown,
     covariance: Matrix<ERROR_STATE_DIM, ERROR_STATE_DIM>,
     noise: ImuNoise,
+    /// Angular rate of the last IMU sample as measured, rad/s, body axes:
+    /// the turn that moves a point away from the IMU.
+    rate: [f64; 3],
 }
 
 impl InsFilter {
@@ -229,6 +236,7 @@ impl InsFilter {
             nominal,
             covariance: priors.covariance(),
             noise,
+            rate: [0.0; 3],
         }
     }
 
@@ -243,6 +251,7 @@ impl InsFilter {
         let rotation = self.nominal.quaternion().to_matrix();
         let earth_rate = self.nominal.earth_rate();
         self.nominal.step(sample)?;
+        self.rate = sample.angular_rate();
 
         // Φ = I + A dt, with the blocks of A significant over a few-millisecond
         // step: position from velocity, tilt × specific force into velocity,
@@ -623,10 +632,10 @@ impl InsFilter {
     ///
     /// The scale is the caller's calibration, not a state of the filter
     /// (ADR-0021): a 1 % error at 2.5 m/s is 2.5 cm/s, 0.75 m over 30 s
-    /// without GNSS. The odometer is taken to read at the IMU; mount the IMU
-    /// over the rear axle, or the turn adds `ω × l` across the reading.
-    /// From a dead-reckoning u-blox receiver, `kinavis-ubx`'s `Odometer`
-    /// turns the wheel ticks of `ESF-MEAS` into this speed.
+    /// without GNSS. The odometer is taken to read at the IMU; for one that
+    /// reads elsewhere, [`InsFilter::update_wheel_speed_at`]. From a
+    /// dead-reckoning u-blox receiver, `kinavis-ubx`'s `Odometer` turns the
+    /// wheel ticks of `ESF-MEAS` into this speed.
     ///
     /// # Errors
     ///
@@ -639,6 +648,29 @@ impl InsFilter {
         sigma: Speed,
         gate: GatingPolicy,
     ) -> Result<InsUpdate> {
+        self.update_wheel_speed_at(speed, scale, sigma, AT_THE_IMU, gate)
+    }
+
+    /// Wheel speed read at a point of the body away from the IMU: `at`, from
+    /// the IMU to the point, in body axes (the middle of the rear axle for
+    /// the mean of the rear wheels).
+    ///
+    /// In a turn the point moves at `v + ω × at`: with the IMU 2 m ahead of
+    /// the rear axle, a tractor turning at 20°/s has its axle 0.7 m/s slower
+    /// sideways than its IMU. `ω` is the last IMU sample's rate, less the
+    /// estimated gyro bias.
+    ///
+    /// # Errors
+    ///
+    /// As [`InsFilter::update_wheel_speed`].
+    pub fn update_wheel_speed_at(
+        &mut self,
+        speed: Speed,
+        scale: f64,
+        sigma: Speed,
+        at: Vector3<Body, Distance>,
+        gate: GatingPolicy,
+    ) -> Result<InsUpdate> {
         ensure_range(
             "wheel speed sigma",
             sigma.metres_per_second(),
@@ -646,7 +678,7 @@ impl InsFilter {
             1e3,
         )?;
         ensure_range("odometer scale", scale, 0.5, 2.0)?;
-        let (rows, body) = self.body_velocity_rows();
+        let (rows, body) = self.point_velocity_rows(at);
         let [forward, _, _] = rows;
         let innovation = [speed.metres_per_second() / scale - body[0]];
         let jacobian = Matrix::<1, ERROR_STATE_DIM>::from_fn(|_, column| {
@@ -663,7 +695,8 @@ impl InsFilter {
     /// IMU on the axle the machine turns about (the rear axle of a tractor):
     /// the caller decides when that is so. `sigma_lateral` and
     /// `sigma_vertical` bound the residual motion: skidding, suspension,
-    /// a lever arm left out.
+    /// a lever arm left out. For an IMU elsewhere,
+    /// [`InsFilter::update_non_holonomic_at`].
     ///
     /// # Errors
     ///
@@ -674,13 +707,33 @@ impl InsFilter {
         sigma_vertical: Speed,
         gate: GatingPolicy,
     ) -> Result<InsUpdate> {
+        self.update_non_holonomic_at(sigma_lateral, sigma_vertical, AT_THE_IMU, gate)
+    }
+
+    /// Non-holonomic constraint at the point the machine turns about, `at`
+    /// from the IMU in body axes: the middle of the rear axle of a tractor
+    /// whose IMU is in the cab.
+    ///
+    /// Held at the IMU instead, a turn would read as sideslip: `ω × at` is
+    /// the IMU's sideways speed when the axle has none.
+    ///
+    /// # Errors
+    ///
+    /// As [`InsFilter::update_position`].
+    pub fn update_non_holonomic_at(
+        &mut self,
+        sigma_lateral: Speed,
+        sigma_vertical: Speed,
+        at: Vector3<Body, Distance>,
+        gate: GatingPolicy,
+    ) -> Result<InsUpdate> {
         for (name, sigma) in [
             ("lateral sigma", sigma_lateral),
             ("vertical sigma", sigma_vertical),
         ] {
             ensure_range(name, sigma.metres_per_second(), f64::MIN_POSITIVE, 1e3)?;
         }
-        let (rows, body) = self.body_velocity_rows();
+        let (rows, body) = self.point_velocity_rows(at);
         let [_, right, down] = rows;
         let innovation = [-body[1], -body[2]];
         let jacobian = Matrix::<2, ERROR_STATE_DIM>::from_fn(|row, column| {
@@ -786,6 +839,42 @@ impl InsFilter {
             }
         }
         (rows, body)
+    }
+
+    /// Velocity of a point `at` from the IMU, body axes, `Cᵀ v + ω × at`
+    /// with `ω` the last sample's rate less the gyro bias, and its Jacobian
+    /// rows: those of the body velocity, and `[at×]` on the gyro bias error
+    /// (a larger bias, a slower turn). The Earth's rate, 0.07 mrad/s, is
+    /// left in `ω`.
+    fn point_velocity_rows(
+        &self,
+        at: Vector3<Body, Distance>,
+    ) -> ([[f64; ERROR_STATE_DIM]; 3], [f64; 3]) {
+        let (mut rows, body) = self.body_velocity_rows();
+        let arm = [
+            at.forward().metres(),
+            at.right().metres(),
+            at.down().metres(),
+        ];
+        let bias = self.nominal.gyro_bias();
+        let turn = [
+            self.rate[0] - bias[0],
+            self.rate[1] - bias[1],
+            self.rate[2] - bias[2],
+        ];
+        let swept = cross(turn, arm);
+        let arm_skew = skew(arm);
+        for (axis, row) in rows.iter_mut().enumerate() {
+            for column in 0..3 {
+                if let Some(slot) = row.get_mut(GYRO_BIAS + column) {
+                    *slot += arm_skew.get(axis, column).unwrap_or(0.0);
+                }
+            }
+        }
+        (
+            rows,
+            [body[0] + swept[0], body[1] + swept[1], body[2] + swept[2]],
+        )
     }
 
     /// Corrected mechanisation state.
@@ -988,6 +1077,34 @@ mod tests {
             [p[0] + arm[0], p[1] + arm[1], p[2] + arm[2]]
         };
         check(h, &antenna_jacobian::<3>(arm));
+    }
+
+    #[test]
+    fn the_point_velocity_rows_are_the_derivative_of_the_point_velocity() {
+        // Turning and rolling, a point 2 m behind, 0.4 m left of and 1 m
+        // below the IMU: the gyro bias enters through ω × at.
+        let at = Vector3::<Body, Distance>::new(
+            Distance::from_metres(-2.0).unwrap(),
+            Distance::from_metres(-0.4).unwrap(),
+            Distance::from_metres(1.0).unwrap(),
+        );
+        let turning = |f: &InsFilter| {
+            let mut f = f.clone();
+            f.rate = [0.05, -0.02, 0.35];
+            f
+        };
+        let base = turning(&filter());
+        let (rows, value) = base.point_velocity_rows(at);
+        let (_, body) = base.body_velocity_rows();
+        let swept = cross([0.05, -0.02, 0.35], [-2.0, -0.4, 1.0]);
+        for axis in 0..3 {
+            assert!((value[axis] - body[axis] - swept[axis]).abs() < 1e-12);
+        }
+        let jacobian = Matrix::<3, ERROR_STATE_DIM>::from_fn(|row, column| rows[row][column]);
+        check(
+            |f: &InsFilter| turning(f).point_velocity_rows(at).1,
+            &jacobian,
+        );
     }
 
     #[test]

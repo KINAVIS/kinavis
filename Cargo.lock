@@ -125,7 +125,7 @@ dependencies = [
 
 [[package]]
 name = "kinavis-ins"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "kinavis-kernel",
  "kinavis-ubx",
