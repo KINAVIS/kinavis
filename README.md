@@ -9,12 +9,22 @@
 ![no_std](https://img.shields.io/badge/no__std-no%20allocator-blue.svg)
 [![License: MIT OR Apache-2.0](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](#license)
 
-**Marine navigation for Rust** — NMEA 0183, NMEA 2000, AIS, GNSS, INS and the
-COLREGs, from a `no_std` microcontroller to a workstation.
+**Navigation for Rust, at sea, in the field and on the robot**: GNSS with
+RTK and integrity, INS, NMEA 0183 and 2000, AIS, ISOBUS, MAVLink and ROS 2,
+from a `no_std` microcontroller to a workstation.
 
-From the bytes a sensor sends to the numbers the officer of the watch acts on:
-NMEA 0183, NMEA 2000, AIS and an IMU in; a position, a course to steer, a
-collision assessment and a bridge alert out.
+From the bytes a sensor sends to the numbers a machine or its operator acts
+on:
+
+- **On the bridge**: NMEA 0183, NMEA 2000, AIS and an IMU in; a position, a
+  course to steer, a collision assessment under the COLREGs and a bridge
+  alert out.
+- **On the tractor**: an RTK receiver and the ISOBUS in; the pass, the
+  cross-track error, a steering angle by pure pursuit or Stanley, headland
+  turns and section control out, on a field plane true to the ground.
+- **On the rover**: a strapdown INS aided by GNSS, wheel speed and the
+  non-holonomic constraint, speaking MAVLink to ArduPilot and ROS 2 messages
+  in ROS frames.
 
 ## Why KINAVIS
 
@@ -39,14 +49,15 @@ collision assessment and a bridge alert out.
   step by step.
 - **Verified.** The parsers are fuzzed, and CI reads every sentence of
   gpsd's two hundred logs of real receivers against a recorded tally; the
-  algorithms are checked against published reference values — NOAA's WMM test points, Vincenty's test
-  lines, PROJ's datum shifts; and the filters pass Monte Carlo consistency
-  tests.
+  algorithms are checked against published reference values (NOAA's WMM
+  test points, Vincenty's test lines, PROJ's datum shifts and map grids),
+  field regions and their insets against GEOS and CGAL; and the filters
+  pass Monte Carlo consistency tests.
 
 ## See it run
 
-Four demonstrations in [`examples/`](examples/), each on data recorded from
-real equipment — gpsd's receiver logs and a Signal K AIS recording:
+Five demonstrations in [`examples/`](examples/), each on data recorded from
+real equipment: gpsd's receiver logs and a Signal K AIS recording.
 
 | Demonstration | What it shows |
 |---|---|
@@ -54,6 +65,7 @@ real equipment — gpsd's receiver logs and a Signal K AIS recording:
 | `gnss_jump` | a yacht's track with one fix moved forty miles: `REFUSED  implausible jump: 144094 kn implied` |
 | `traffic` | 1459 AIS messages off Harlingen decoded; CPA and TCPA of every ship against one of them |
 | `course_to_steer` | the same yacht against a passage plan: cross-track error and the cross-track alarm |
+| `integrity` | a u-blox NEO-M8P's UBX: the fix with the receiver's accuracy, RAIM finding a 40 m error injected into one satellite, the position on UTM, MGRS and СК-42, the height by EGM96 |
 
 ```sh
 cargo run -p kinavis-examples --example traffic
@@ -84,6 +96,9 @@ graph BT
     traffic[kinavis-traffic] --> kinavis
     colregs[kinavis-colregs] --> kinavis
     grid[kinavis-grid] --> kernel
+    geoid[kinavis-geoid] --> kernel
+    ubx[kinavis-ubx] --> kernel
+    integrity[kinavis-integrity] --> kernel
     agri[kinavis-agri] --> kinavis
     agri --> grid
     alerts[kinavis-alerts] --> traffic
@@ -91,38 +106,74 @@ graph BT
     signalk --> colregs
 ```
 
+**Core**
+
 | Crate | What it does |
 |---|---|
 | [`kinavis-kernel`](https://docs.rs/kinavis-kernel) | the value types: frame-tagged angles, units, positions, time scales, geodesy and chart datums, events and the error type |
-| [`kinavis`](https://docs.rs/kinavis) | the algorithms: compass and deviation, the sailings, dead reckoning, fixes, routes and guidance, tides, the sun, a Kalman filter over the navigation state |
+| [`kinavis`](https://docs.rs/kinavis) | the algorithms: compass and deviation, the sailings, dead reckoning, fixes, routes and guidance, tides, the sun, a Kalman filter over the navigation state, planar regions with holes and their insets |
+
+**GNSS**
+
+| Crate | What it does |
+|---|---|
 | [`kinavis-nmea0183`](https://docs.rs/kinavis-nmea0183) | NMEA 0183 sentences, parsed and written |
-| [`kinavis-nmea2000`](https://docs.rs/kinavis-nmea2000) | NMEA 2000 parameter groups out of CAN frames, fast-packet included, on the J1939 frame |
-| [`kinavis-ais`](https://docs.rs/kinavis-ais) | AIS messages: position reports, static and voyage data, aids to navigation |
-| [`kinavis-j1939`](https://docs.rs/kinavis-j1939) | SAE J1939 and ISO 11783-3: the 29-bit identifier, NAME and address claim, the transport protocols (BAM, RTS/CTS, ETP) |
-| [`kinavis-isobus`](https://docs.rs/kinavis-isobus) | ISOBUS (ISO 11783-7): wheel-based, ground-based and machine selected speed, the guidance messages |
-| [`kinavis-mavlink`](https://docs.rs/kinavis-mavlink) | MAVLink 2: frames, checksums and signatures, the position, attitude and mission messages of ArduPilot |
-| [`kinavis-ros2`](https://docs.rs/kinavis-ros2) | ROS 2: `NavSatFix`, `Imu`, `Odometry` and `GeoPoint` with the NED/FRD to ENU/FLU conversions and covariances |
-| [`kinavis-wmm`](https://docs.rs/kinavis-wmm) | the World Magnetic Model 2025: magnetic variation at any position |
-| [`kinavis-geoid`](https://docs.rs/kinavis-geoid) | geoid heights from a global grid, EGM96 embedded: heights above the ellipsoid to heights above mean sea level |
-| [`kinavis-grid`](https://docs.rs/kinavis-grid) | map grids: transverse Mercator, UTM/UPS, MGRS, Gauss–Krüger zones (СК-42, СК-95, ГСК-2011) and national grids, grid north |
 | [`kinavis-ubx`](https://docs.rs/kinavis-ubx) | the u-blox UBX protocol: fixes with the receiver's accuracy and RTK status, satellites with residuals, dual-antenna heading, inertial and wheel measurements |
 | [`kinavis-integrity`](https://docs.rs/kinavis-integrity) | GNSS integrity: RAIM fault detection and exclusion, horizontal and vertical protection levels |
-| [`kinavis-agri`](https://docs.rs/kinavis-agri) | field guidance: a low-distortion field plane, AB lines, curves and pivot circles, parallel passes, tilt compensation, pure pursuit and Stanley, headland turns, coverage and section control |
+| [`kinavis-geoid`](https://docs.rs/kinavis-geoid) | geoid heights from a global grid, EGM96 embedded: heights above the ellipsoid to heights above mean sea level |
+| [`kinavis-grid`](https://docs.rs/kinavis-grid) | map grids: transverse Mercator, UTM/UPS, MGRS, Gauss–Krüger zones (СК-42, СК-95, ГСК-2011) and national grids, grid north |
+| [`kinavis-wmm`](https://docs.rs/kinavis-wmm) | the World Magnetic Model 2025: magnetic variation at any position |
+
+**Inertial**
+
+| Crate | What it does |
+|---|---|
 | [`kinavis-ins`](https://docs.rs/kinavis-ins) | a strapdown inertial navigation system with a fifteen-state error filter aided by GNSS, heading, wheel speed and the non-holonomic constraint |
+
+**At sea**
+
+| Crate | What it does |
+|---|---|
+| [`kinavis-nmea2000`](https://docs.rs/kinavis-nmea2000) | NMEA 2000 parameter groups out of CAN frames, fast-packet included, on the J1939 frame |
+| [`kinavis-ais`](https://docs.rs/kinavis-ais) | AIS messages: position reports, static and voyage data, aids to navigation |
 | [`kinavis-traffic`](https://docs.rs/kinavis-traffic) | target tracking from radar and AIS, CPA and TCPA, the avoiding manoeuvre |
 | [`kinavis-colregs`](https://docs.rs/kinavis-colregs) | the steering and sailing rules of the COLREGs as data |
 | [`kinavis-alerts`](https://docs.rs/kinavis-alerts) | bridge alert management: alarms, warnings and cautions, with acknowledgement |
 | [`kinavis-signalk`](https://docs.rs/kinavis-signalk) | Signal K deltas in, CPA, TCPA and the COLREGs ruling out; the core of the [Signal K plugin](https://github.com/KINAVIS/signalk-kinavis) (`std`) |
 
+**In the field**
+
+| Crate | What it does |
+|---|---|
+| [`kinavis-agri`](https://docs.rs/kinavis-agri) | field guidance: a low-distortion field plane, AB lines, curves and pivot circles, parallel passes, tilt compensation, pure pursuit and Stanley, headland turns, coverage and section control |
+| [`kinavis-j1939`](https://docs.rs/kinavis-j1939) | SAE J1939 and ISO 11783-3: the 29-bit identifier, NAME and address claim, the transport protocols (BAM, RTS/CTS, ETP) |
+| [`kinavis-isobus`](https://docs.rs/kinavis-isobus) | ISOBUS (ISO 11783-7): wheel-based, ground-based and machine selected speed, the guidance messages |
+
+**Robots**
+
+| Crate | What it does |
+|---|---|
+| [`kinavis-mavlink`](https://docs.rs/kinavis-mavlink) | MAVLink 2: frames, checksums and signatures, the position, attitude and mission messages of ArduPilot |
+| [`kinavis-ros2`](https://docs.rs/kinavis-ros2) | ROS 2: `NavSatFix`, `Imu`, `Odometry` and `GeoPoint` with the NED/FRD to ENU/FLU conversions and covariances |
+
 An adapter depends on the kernel alone and never pulls in the algorithms;
-take only the crates you need.
+take only the crates you need. `kinavis-nmea2000` and `kinavis-isobus` share
+one CAN layer, `kinavis-j1939`: a boat and a tractor speak the same frame.
+
+Built on the crates:
+
+- [**signalk-kinavis**](https://github.com/KINAVIS/signalk-kinavis): a
+  Signal K server plugin, CPA, TCPA and the COLREGs ruling for every target.
+- [**ros2-kinavis**](https://github.com/KINAVIS/ros2-kinavis): ROS 2 nodes in
+  Rust; `nmea_navsat` publishes a receiver's `NavSatFix` with the covariance
+  of its own error ellipse.
 
 ## Quick start
 
 ```toml
 [dependencies]
 kinavis = "1"
-kinavis-nmea0183 = "0.1"
+kinavis-nmea0183 = "0.2"
 ```
 
 Fixes off the wire, and what to steer to stay on the planned track:
@@ -187,16 +238,21 @@ through the rest — the sailings, fixing, deviation tables and the inverse
 problem, the current triangle, errors, `serde`, and what each aggregate
 weighs in memory — with examples that are compiled and run as tests.
 
+In the field, start from [`kinavis-agri`](crates/kinavis-agri/README.md): a
+field plane, an AB line and the pass under the antenna in a dozen lines.
+
 ## Help wanted: real hardware
 
 Everything here is tested against recorded data, reference values and
-simulation. What cannot be tested that way is how it behaves on a real bridge:
-a GNSS receiver losing the sky, an NMEA 2000 backbone under load, an AIS
-receiver in a crowded anchorage, an IMU strapped to a hull in a seaway, a
-microcontroller with a real stack budget. If you have such equipment and would
-run KINAVIS against it — or can share a recording of what it sends — please
+simulation. What cannot be tested that way is how it behaves on real
+equipment: a GNSS receiver losing the sky, an NMEA 2000 backbone under load,
+an AIS receiver in a crowded anchorage, an IMU strapped to a hull in a
+seaway; a tractor's RTK receiver and ISOBUS on a side slope, a rover under
+ArduPilot on rough ground; a microcontroller with a real stack budget. If
+you have such equipment and would run KINAVIS against it, or can share a
+recording of what it sends, please
 [open an issue](https://github.com/KINAVIS/kinavis/issues). Logs from the sea
-are worth more than any number of tests on land.
+and the field are worth more than any number of tests on the bench.
 
 ## Stability
 
