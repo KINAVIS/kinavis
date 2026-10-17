@@ -39,6 +39,7 @@ jobs:
       - run: cargo test -p kinavis-integrity --no-default-features --features libm
       - run: cargo test -p kinavis-agri --no-default-features --features libm
       - run: cargo test -p kinavis-j1939 -p kinavis-isobus --no-default-features --features libm
+      - run: cargo test -p kinavis-mavlink --no-default-features --features "libm signing"
       - run: cargo test -p kinavis-kernel -p kinavis --no-default-features --features "libm alloc"
       - run: cargo test -p kinavis-kernel -p kinavis --no-default-features --features "libm serde"
       # Magnetic model on `libm`, and without embedded coefficients (synthesis
@@ -80,7 +81,7 @@ jobs:
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
       - run: cargo fmt --all --check
       - run: cargo clippy --workspace --all-targets --all-features
-      - run: cargo clippy -p kinavis-kernel -p kinavis -p kinavis-nmea0183 -p kinavis-wmm -p kinavis-geoid -p kinavis-grid -p kinavis-ubx -p kinavis-integrity -p kinavis-agri -p kinavis-j1939 -p kinavis-isobus -p kinavis-traffic -p kinavis-colregs -p kinavis-alerts -p kinavis-ais -p kinavis-nmea2000 -p kinavis-ins --all-targets --no-default-features --features libm
+      - run: cargo clippy -p kinavis-kernel -p kinavis -p kinavis-nmea0183 -p kinavis-wmm -p kinavis-geoid -p kinavis-grid -p kinavis-ubx -p kinavis-integrity -p kinavis-agri -p kinavis-j1939 -p kinavis-isobus -p kinavis-mavlink -p kinavis-traffic -p kinavis-colregs -p kinavis-alerts -p kinavis-ais -p kinavis-nmea2000 -p kinavis-ins --all-targets --no-default-features --features libm
       - run: cargo clippy -p kinavis-kernel -p kinavis --all-targets --no-default-features --features "libm alloc"
       - run: cargo clippy -p kinavis-kernel -p kinavis --all-targets --no-default-features --features "libm serde"
       - run: cargo doc --workspace --no-deps --all-features
@@ -152,6 +153,7 @@ jobs:
       - run: cargo build -p kinavis-integrity --target thumbv7em-none-eabihf --no-default-features --features libm
       - run: cargo build -p kinavis-agri --target thumbv7em-none-eabihf --no-default-features --features libm
       - run: cargo build -p kinavis-j1939 -p kinavis-isobus --target thumbv7em-none-eabihf --no-default-features --features libm
+      - run: cargo build -p kinavis-mavlink --target thumbv7em-none-eabihf --no-default-features --features "libm signing"
       - run: cargo build -p kinavis-kernel -p kinavis --target thumbv7em-none-eabihf --no-default-features --features "libm alloc"
       - run: cargo build -p kinavis-kernel -p kinavis --target thumbv7em-none-eabihf --no-default-features --features "libm serde"
 
@@ -193,6 +195,8 @@ jobs:
             target: transport
           - crate: kinavis-isobus
             target: decode
+          - crate: kinavis-mavlink
+            target: deframe
           - crate: kinavis-geoid
             target: pgm
           - crate: kinavis-grid

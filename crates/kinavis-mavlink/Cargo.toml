@@ -1,0 +1,35 @@
+[package]
+name = "kinavis-mavlink"
+description = "MAVLink 2 for the KINAVIS navigation crates: frames, checksums and signatures, the position, attitude and mission messages of ArduPilot, without an allocator."
+documentation = "https://docs.rs/kinavis-mavlink"
+readme = "README.md"
+keywords = ["mavlink", "ardupilot", "drone", "rover", "no-std"]
+categories = ["embedded", "no-std::no-alloc", "parser-implementations", "aerospace::drones"]
+# Satellite crate, versioned independently of the kernel.
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+homepage.workspace = true
+license.workspace = true
+include = ["src/**", "tests/**", "README.md", "LICENSE-*"]
+
+[features]
+default = ["std"]
+# Standard library maths in the kernel.
+std = ["kinavis-kernel/std"]
+# Pure-Rust `libm`, for `no_std` targets.
+libm = ["kinavis-kernel/libm"]
+# Message signing (SHA-256).
+signing = []
+
+[dependencies]
+# Kernel only; the link (serial, UDP) is the caller's.
+kinavis-kernel = { workspace = true }
+
+[dev-dependencies]
+proptest = { workspace = true }
+
+[lints]
+workspace = true

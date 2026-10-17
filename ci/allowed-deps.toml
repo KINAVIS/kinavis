@@ -74,6 +74,11 @@ allow = ["kinavis-kernel", "kinavis-j1939", "serde"]
 # bytes and instants, over the kernel only.
 allow = ["kinavis-kernel", "serde"]
 
+[kinavis-mavlink]
+# MAVLink frames and messages over the kernel; the SHA-256 of signatures is
+# its own.
+allow = ["kinavis-kernel"]
+
 [kinavis-isobus]
 # ISO 11783-7 messages, on the J1939 frame.
 allow = ["kinavis-kernel", "kinavis-j1939", "serde"]
