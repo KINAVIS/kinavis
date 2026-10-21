@@ -43,7 +43,9 @@ println!("{} at {:.2} m from the line", passes.pass_at(offset), offset.metres())
   the machine.
 - **Turns**: Dubins paths, all six words, as U-turns or omega turns onto
   the next pass; followed by the same trackers; checked against the field
-  for the machine's width.
+  for the machine's width. Reeds–Shepp paths, all 48 words, for turns that
+  reverse: the three-point turn onto a close pass, with its cusps and the
+  gear of each piece.
 - **Coverage and sections**: a two-bit raster of worked and overlapped
   ground, marked by the sections that are on; section control ahead of
   worked ground and the field's edge, with the valves' on and off delays.
@@ -61,7 +63,8 @@ and in closed loop on straight and curved passes and a change of pass at
 working speeds; worked area against the exact strip on straight and curved passes, passes
 edge to edge without gap or overlap, sections switching within a step of
 worked ground and the field's edge; Dubins paths against Walker's library (3000 cases) and the U and omega
-turns against their closed forms; the bicycle model against fine integration and finite
+turns against their closed forms; Reeds–Shepp paths against OMPL (3600 cases, 600 of them headland turns),
+never longer than Dubins, the machine moving the way each piece's gear says; the bicycle model against fine integration and finite
 differences, and the estimator through a headland turn with six seconds
 without fixes and with a late receiver; the same results with `std` and
 `libm`. `no_std`, no

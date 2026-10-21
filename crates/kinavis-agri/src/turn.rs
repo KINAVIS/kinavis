@@ -180,21 +180,10 @@ impl TurnPath {
         to: PassIndex,
         radius: Distance,
     ) -> Result<Self> {
-        let entry = project(line, pattern.offset_metres(to), exit.position);
-        let course = line.station(entry).direction;
-        // Heading back: against the exit course.
-        let course = if course.angular_distance(exit.course) <= 90.0 {
-            course.reciprocal()
-        } else {
-            course
-        };
         Self::dubins(
             *line.plane(),
             exit,
-            Pose {
-                position: entry,
-                course,
-            },
+            pass_entry(line, pattern, exit, to),
             radius,
         )
     }
@@ -282,24 +271,60 @@ impl TurnPath {
         step: Distance,
     ) -> Result<Option<Distance>> {
         self.plane.ensure_same(field.plane())?;
-        let step = step.metres();
-        ensure_range("check step, metres", step, 0.01, 10.0)?;
-        ensure_range("half width, metres", half_width.metres(), 0.0, 1e3)?;
-        let needed = half_width.metres() + step / 2.0;
-        let total = self.length().metres();
-        let count = math::to_usize(math::ceil(total / step));
-        for index in 0..=count {
-            let along = (math::count_to_f64(index) * step).min(total);
-            let point = self.pose_at(metres(along)).position;
-            let region = field.region();
-            let clear = region.contains(point) == Containment::Inside
-                && region.distance_to_boundary(point).metres() >= needed;
-            if !clear {
-                return Ok(Some(metres(along)));
-            }
-        }
-        Ok(None)
+        first_conflict(field, half_width, step, self.length(), |along| {
+            self.pose_at(along).position
+        })
     }
+}
+
+/// Pose that joins pass `to` abreast of the exit point, heading back.
+pub(crate) fn pass_entry<L: ReferenceLine>(
+    line: &L,
+    pattern: &PassPattern,
+    exit: Pose,
+    to: PassIndex,
+) -> Pose {
+    let entry = project(line, pattern.offset_metres(to), exit.position);
+    let course = line.station(entry).direction;
+    // Heading back: against the exit course.
+    let course = if course.angular_distance(exit.course) <= 90.0 {
+        course.reciprocal()
+    } else {
+        course
+    };
+    Pose {
+        position: entry,
+        course,
+    }
+}
+
+/// First checked distance along a path of length `total` at which the point
+/// `at(along)` is closer than `half_width + step / 2` to the field's edge or
+/// outside it.
+pub(crate) fn first_conflict<const N: usize, const H: usize, const K: usize>(
+    field: &Field<N, H, K>,
+    half_width: Distance,
+    step: Distance,
+    total: Distance,
+    at: impl Fn(Distance) -> PlanarPoint,
+) -> Result<Option<Distance>> {
+    let step = step.metres();
+    ensure_range("check step, metres", step, 0.01, 10.0)?;
+    ensure_range("half width, metres", half_width.metres(), 0.0, 1e3)?;
+    let needed = half_width.metres() + step / 2.0;
+    let total = total.metres();
+    let count = math::to_usize(math::ceil(total / step));
+    let region = field.region();
+    for index in 0..=count {
+        let along = (math::count_to_f64(index) * step).min(total);
+        let point = at(metres(along));
+        let clear = region.contains(point) == Containment::Inside
+            && region.distance_to_boundary(point).metres() >= needed;
+        if !clear {
+            return Ok(Some(metres(along)));
+        }
+    }
+    Ok(None)
 }
 
 impl ReferenceLine for TurnPath {
@@ -342,14 +367,14 @@ impl ReferenceLine for TurnPath {
 /// Pose in the normalised mathematical frame: x east, y north, in units of
 /// the radius, heading counter-clockwise from east.
 #[derive(Debug, Clone, Copy)]
-struct MathPose {
-    x: f64,
-    y: f64,
-    heading: f64,
+pub(crate) struct MathPose {
+    pub(crate) x: f64,
+    pub(crate) y: f64,
+    pub(crate) heading: f64,
 }
 
 impl MathPose {
-    fn of(pose: Pose, radius: f64) -> Self {
+    pub(crate) fn of(pose: Pose, radius: f64) -> Self {
         Self {
             x: pose.position.east_metres() / radius,
             y: pose.position.north_metres() / radius,
@@ -357,7 +382,7 @@ impl MathPose {
         }
     }
 
-    fn pose(self, radius: f64) -> Pose {
+    pub(crate) fn pose(self, radius: f64) -> Pose {
         Pose {
             position: PlanarPoint::from_metres(self.x * radius, self.y * radius)
                 .unwrap_or(PlanarPoint::ORIGIN),
@@ -365,7 +390,8 @@ impl MathPose {
         }
     }
 
-    fn advance(self, steer: Steer, length: f64) -> Self {
+    /// Pose after `length` (negative in reverse) of a piece.
+    pub(crate) fn advance(self, steer: Steer, length: f64) -> Self {
         let (s, c) = (math::sin(self.heading), math::cos(self.heading));
         match steer {
             Steer::Straight => Self {
@@ -395,7 +421,12 @@ impl MathPose {
 
 /// Distance, signed offset (left positive) and heading at the foot, from a
 /// straight of parameter range `from..to` starting at `pose`.
-fn straight_station(pose: MathPose, from: f64, to: f64, target: (f64, f64)) -> (f64, f64, f64) {
+pub(crate) fn straight_station(
+    pose: MathPose,
+    from: f64,
+    to: f64,
+    target: (f64, f64),
+) -> (f64, f64, f64) {
     let (s, c) = (math::sin(pose.heading), math::cos(pose.heading));
     let (dx, dy) = (target.0 - pose.x, target.1 - pose.y);
     let along = (dx * c + dy * s).max(from).min(to);
@@ -408,7 +439,12 @@ fn straight_station(pose: MathPose, from: f64, to: f64, target: (f64, f64)) -> (
 
 /// As [`straight_station`] for an arc of unit radius and the given swept
 /// angle.
-fn arc_station(pose: MathPose, steer: Steer, sweep: f64, target: (f64, f64)) -> (f64, f64, f64) {
+pub(crate) fn arc_station(
+    pose: MathPose,
+    steer: Steer,
+    sweep: f64,
+    target: (f64, f64),
+) -> (f64, f64, f64) {
     let sign = if steer == Steer::Left { 1.0 } else { -1.0 };
     let (s, c) = (math::sin(pose.heading), math::cos(pose.heading));
     // Centre on the inside of the turn.
@@ -437,7 +473,7 @@ fn arc_station(pose: MathPose, steer: Steer, sweep: f64, target: (f64, f64)) -> 
 }
 
 /// Angle reduced to `[0, 2π)`.
-trait WrapTau {
+pub(crate) trait WrapTau {
     fn wrap_tau(self) -> f64;
 }
 
