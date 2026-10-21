@@ -101,7 +101,8 @@ implement is not under it: the passes are spaced equally for the implement
 0.74 m to the left. Pass by pass, the tracker follows the implement's place;
 the coverage raster, laid out from the logged position, leaves a strip
 unworked at every other seam, and from the implement's place almost none.
-The headland turns back up once each.
+The headland turns back up once each: shorter than the shortest turn
+without reversing (Dubins), longer than the shortest with it (Reeds–Shepp).
 
 ```text
 pass  course   length   offset   sd    step
@@ -117,7 +118,7 @@ from the logged fix    11066 m²   2710 m²   1090 m of seam
 from the implement     12920 m²    857 m²    153 m of seam
 
 11 headland turns: 23 m and 19 s a turn, changing direction 2 times in each.
-The shortest turn without reversing, at a 6 m radius: 36 m.
+The shortest turn at a 6 m radius: 36 m without reversing, 16 m with, changing direction 2 times.
 ```
 
 What is left unworked from the implement's place is where a pass strays

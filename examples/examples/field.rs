@@ -12,7 +12,8 @@
 //! offset to the side that spaces them equally. Laid out from the logged
 //! position, the coverage raster leaves a strip unworked at every other
 //! seam; from the implement's place, almost none. Every headland turn backs
-//! up once: shorter than any turn without reversing.
+//! up once: shorter than any turn without reversing, longer than the
+//! shortest turn with it.
 //!
 //! ```text
 //! cargo run -p kinavis-examples --example field
@@ -24,7 +25,7 @@ use std::error::Error;
 use kinavis::region::PlanarPoint;
 use kinavis_agri::{
     ground_point, AbLine, Boom, CoverageGrid, FieldPlane, LeverArm, PassIndex, PassPattern,
-    PassTracker, Pose, ReferenceLine, Tilt, TrackerConfig, TurnPath,
+    PassTracker, Pose, ReedsSheppPath, ReferenceLine, Tilt, TrackerConfig, TurnPath,
 };
 use kinavis_kernel::{Civil, Distance, GridCourse, Height, Instant, Position, Utc};
 
@@ -37,8 +38,8 @@ const WIDTH: f64 = 4.2;
 /// log's altitude column, and about 47 m of geoid near Munich.
 const ELLIPSOIDAL_HEIGHT: f64 = 618.0;
 
-/// Turning radius of the shortest forward-only turn to compare with: a
-/// tractor of this size with a mounted implement.
+/// Turning radius of the shortest turns to compare with: a tractor of this
+/// size with a mounted implement.
 const TURN_RADIUS: f64 = 6.0;
 
 /// Fixes dropped at each end of a pass, 5 s at 5 Hz: the implement going in
@@ -370,11 +371,14 @@ fn seams_unworked(
     unworked
 }
 
-/// The headland turns, against the shortest forward-only turn; a change of
-/// direction is the track turning back on itself within a second.
+/// The headland turns, against the shortest turns without and with
+/// reversing; a change of direction is the track turning back on itself
+/// within a second.
 fn turns(plane: &FieldPlane, fixes: &[Fix], passes: &[Pass]) -> Outcome<()> {
     let mut driven = 0.0;
     let mut shortest = 0.0;
+    let mut reversing = 0.0;
+    let mut cusps = 0u32;
     let mut seconds = 0.0;
     let mut reversals = 0u32;
     let mut count = 0u32;
@@ -398,23 +402,27 @@ fn turns(plane: &FieldPlane, fixes: &[Fix], passes: &[Pass]) -> Outcome<()> {
                 i += 1;
             }
         }
-        let turn = TurnPath::dubins(
-            *plane,
-            pose(fixes, out)?,
-            pose(fixes, back)?,
-            Distance::from_metres(TURN_RADIUS)?,
-        )?;
-        shortest += turn.length().metres();
+        let (exit, entry) = (pose(fixes, out)?, pose(fixes, back)?);
+        let radius = Distance::from_metres(TURN_RADIUS)?;
+        shortest += TurnPath::dubins(*plane, exit, entry, radius)?
+            .length()
+            .metres();
+        let backing = ReedsSheppPath::shortest(*plane, exit, entry, radius)?;
+        reversing += backing.length().metres();
+        cusps += u32::try_from(backing.cusps().count())?;
         count += 1;
     }
     let turns = f64::from(count.max(1));
     println!(
         "\n{count} headland turns: {:.0} m and {:.0} s a turn, changing direction {:.0} times \
-         in each.\nThe shortest turn without reversing, at a {TURN_RADIUS} m radius: {:.0} m.",
+         in each.\nThe shortest turn at a {TURN_RADIUS} m radius: {:.0} m without reversing, \
+         {:.0} m with, changing direction {:.0} times.",
         driven / turns,
         seconds / turns,
         f64::from(reversals) / turns,
-        shortest / turns
+        shortest / turns,
+        reversing / turns,
+        f64::from(cusps) / turns
     );
     Ok(())
 }

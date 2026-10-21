@@ -1,12 +1,12 @@
 [package]
 name = "kinavis-agri"
-description = "Field guidance for the KINAVIS navigation crates: a low-distortion field plane, AB lines, curves and pivot circles, parallel passes, tilt compensation, pass trackers, headland turns and section control, without an allocator."
+description = "Field guidance for the KINAVIS navigation crates: a low-distortion field plane, AB lines, curves and pivot circles, parallel passes, tilt compensation, pass trackers, headland turns with and without reversing, and section control, without an allocator."
 documentation = "https://docs.rs/kinavis-agri"
 readme = "README.md"
 keywords = ["agriculture", "guidance", "ab-line", "precision-farming", "no-std"]
 categories = ["science::geo", "no-std::no-alloc", "algorithms"]
 # Satellite crate, versioned independently of the kernel.
-version = "0.1.0"
+version = "0.1.1"
 authors.workspace = true
 edition.workspace = true
 rust-version.workspace = true
