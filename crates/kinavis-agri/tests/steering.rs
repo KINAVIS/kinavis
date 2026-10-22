@@ -1,5 +1,6 @@
 //! Pass trackers: one step against `PythonRobotics`, and closed loops on a
-//! straight pass, a curve and a change of pass at a range of speeds.
+//! straight pass, a curve and a change of pass at a range of speeds, forward
+//! and in reverse.
 
 #![allow(
     clippy::expect_used,
@@ -342,6 +343,99 @@ fn moving_to_the_next_pass_overshoots_little() {
                 result.overshoot < 0.15 * 6.0,
                 "{name} at {v} m/s: overshoot {}",
                 result.overshoot
+            );
+        }
+    }
+}
+
+#[test]
+fn reversing_onto_a_straight_pass_settles_and_stanley_rings_less_with_less_gain() {
+    let line = AbLine::from_point_and_course(
+        plane(),
+        PlanarPoint::ORIGIN,
+        GridCourse::new(30.0).expect("a course"),
+    );
+    let (pursuit, stanley) = trackers();
+    let soft = Stanley::new(0.4, speed(0.5)).expect("Stanley");
+    for v in [0.5, 1.0, 2.0, 3.0] {
+        // Facing against the pass and backing along it: 2 m to the right of
+        // the motion, 10° off its course.
+        let (s, c) = 30f64.to_radians().sin_cos();
+        let start = VehicleState {
+            position: point(2.0 * c, -2.0 * s),
+            heading: GridCourse::new(220.0).expect("a course"),
+            speed: speed(-v),
+        };
+        let time = 60.0 + 100.0 / v;
+        let pass = PassIndex::REFERENCE;
+        let pursued = run(&line, &pursuit, pass, start, time, time - 20.0);
+        let firm = run(&line, &stanley, pass, start, time, time - 20.0);
+        let gentle = run(&line, &soft, pass, start, time, time - 20.0);
+        for (name, result) in [
+            ("pure pursuit", &pursued),
+            ("Stanley", &firm),
+            ("soft Stanley", &gentle),
+        ] {
+            assert!(
+                result.worst_settled < 0.01,
+                "{name} at {v} m/s: settled {}",
+                result.worst_settled
+            );
+        }
+        assert!(pursued.overshoot < 0.15, "{v} m/s: {}", pursued.overshoot);
+        // Damping ½·√(|v| / (k·L)): 0.27 at 1 m/s and k = 1.2, 0.46 at 0.4.
+        assert!(firm.overshoot < 0.7, "{v} m/s: {}", firm.overshoot);
+        assert!(
+            gentle.overshoot < 0.7 * firm.overshoot,
+            "{v} m/s: {} against {}",
+            gentle.overshoot,
+            firm.overshoot
+        );
+    }
+}
+
+#[test]
+fn reversing_round_a_curved_pass_holds_the_rear_axle_on_it() {
+    // Pass +2 of a 60 m pivot, a circle of 72 m: facing west on top and
+    // backing east, clockwise. Stanley guides the rear axle in reverse, the
+    // pass's curvature fed forward, so neither tracker runs inside.
+    let pivot = PivotLine::new(plane(), PlanarPoint::ORIGIN, metres(60.0)).expect("a pivot");
+    let (pursuit, stanley) = trackers();
+    for v in [0.5, 1.0, 2.0] {
+        let start = VehicleState {
+            position: point(0.0, 72.5),
+            heading: GridCourse::new(270.0).expect("west"),
+            speed: speed(-v),
+        };
+        let time = 40.0 + 150.0 / v;
+        for (name, result) in [
+            (
+                "pure pursuit",
+                run(
+                    &pivot,
+                    &pursuit,
+                    PassIndex::new(2),
+                    start,
+                    time,
+                    time - 15.0,
+                ),
+            ),
+            (
+                "Stanley",
+                run(
+                    &pivot,
+                    &stanley,
+                    PassIndex::new(2),
+                    start,
+                    time,
+                    time - 15.0,
+                ),
+            ),
+        ] {
+            assert!(
+                result.worst_settled < 0.01,
+                "{name} at {v} m/s: settled {}",
+                result.worst_settled
             );
         }
     }
