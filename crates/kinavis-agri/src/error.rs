@@ -27,6 +27,12 @@ pub enum AgriError {
         /// Radius limit, metres.
         limit: f64,
     },
+    /// The pass at an offset from a curve is not one curve: inside a bend of
+    /// more than half a turn it parts into pieces, a closed one among them.
+    PassSplits {
+        /// Offset, metres, left positive.
+        distance: f64,
+    },
 }
 
 impl From<NavigationError> for AgriError {
@@ -49,6 +55,10 @@ impl fmt::Display for AgriError {
             Self::BeyondFieldRadius { distance, limit } => write!(
                 f,
                 "point {distance:.0} m from the field plane's origin, beyond its {limit:.0} m radius"
+            ),
+            Self::PassSplits { distance } => write!(
+                f,
+                "the pass {distance} m from the curve parts into pieces"
             ),
         }
     }

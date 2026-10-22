@@ -6,7 +6,7 @@ use kinavis_kernel::error::ensure_range;
 use kinavis_kernel::inline::Inline;
 use kinavis_kernel::{math, Distance, KernelError, Position};
 
-use crate::error::Result;
+use crate::error::{AgriError, Result};
 use crate::line::{course_of, metres, ReferenceLine, Station};
 use crate::plane::FieldPlane;
 
@@ -122,18 +122,25 @@ impl<const N: usize> CurveLine<N> {
     /// most `M` vertices: arcs on the outside of bends drawn with chords no
     /// farther than `tolerance` from the arc, loops on the inside cut.
     ///
-    /// Each vertex of the result lies within twice `tolerance`, plus a
-    /// millionth of the distance, of the exact parallel curve that
-    /// [`ReferenceLine::station`] measures from: a loop cut next to an arc
-    /// meets its chord, not the arc.
+    /// The shifted segments, joined by arcs and by steps back inside bends,
+    /// are cut where they cross; the pieces nearer the line than the distance
+    /// are dropped, the rest joined end to end at the crossings, the ends run
+    /// on along the end segments. Each vertex of the result lies within twice
+    /// `tolerance`, plus a millionth of the distance, of the exact parallel
+    /// curve that [`ReferenceLine::station`] measures from: a loop cut next
+    /// to an arc meets its chord, not the arc.
     ///
     /// # Errors
     ///
     /// - [`KernelError::OutOfRange`] for a tolerance outside 0.1 mm…1 m or a
     ///   distance beyond ±10 km;
     /// - [`KernelError::CapacityExceeded`] if the curve with its arcs, before
-    ///   loops are cut, needs more than `M` vertices;
-    /// - [`NavigationError::OffsetCollapses`] if nothing of the curve is left.
+    ///   loops are cut, or its crossings need more than `M` vertices;
+    /// - [`NavigationError::OffsetCollapses`] if nothing of the curve is left;
+    /// - [`AgriError::PassSplits`](crate::AgriError::PassSplits) if the exact
+    ///   parallel curve is in pieces: when a run-on meets the other or the
+    ///   curve, so the line crosses itself, or inside a bend of more than half
+    ///   a turn that closes a pocket.
     pub fn offset<const M: usize>(
         &self,
         distance: Distance,
@@ -143,14 +150,20 @@ impl<const N: usize> CurveLine<N> {
         let tolerance = tolerance.metres();
         ensure_range("offset of a curve, metres", d, -1e4, 1e4)?;
         ensure_range("chord tolerance, metres", tolerance, 1e-4, 1.0)?;
-        let mut raw = raw_offset::<N, M>(self.vertices(), d, tolerance)?;
-        cut_loops(&mut raw);
+        let bound = 2.0 * tolerance + 1e-6 * (1.0 + math::abs(d));
+        if math::abs(d) <= bound {
+            // Within the bound of the curve: the curve itself.
+            return CurveLine::<M>::new(self.plane, self.vertices());
+        }
+        if run_ons_cross(self.vertices()) {
+            return Err(AgriError::PassSplits { distance: d });
+        }
+        let raw = raw_offset::<N, M>(self.vertices(), d, tolerance)?;
+        let traced = trace::<N, M>(self, raw.as_slice(), d, bound, tolerance)?;
         let mut kept = Inline::<PlanarPoint, M>::new(PlanarPoint::ORIGIN);
-        for point in raw.as_slice() {
+        for point in traced.as_slice() {
             let station = self.station(*point);
-            if math::abs(station.offset.metres() - d)
-                > 2.0 * tolerance + 1e-6 * (1.0 + math::abs(d))
-            {
+            if math::abs(station.offset.metres() - d) > bound {
                 continue;
             }
             let distinct = kept
@@ -158,38 +171,33 @@ impl<const N: usize> CurveLine<N> {
                 .last()
                 .is_none_or(|last| last.distance_to(*point).metres() >= MIN_SEGMENT_METRES);
             if distinct {
-                // `kept` is no longer than `raw`, which fits in `M`.
+                // `kept` is no longer than `traced`, which fits in `M`.
                 let _ = kept.push(*point);
             }
         }
-        if kept.len() < 2 {
+        // Folding back is a pass pinched off between two sides of the curve
+        // twice the distance apart.
+        if kept.len() < 2 || folds_back(kept.as_slice()) {
             return Err(NavigationError::OffsetCollapses { distance: d }.into());
         }
         CurveLine::<M>::new(self.plane, kept.as_slice())
     }
 
     fn validate(&self) -> Result<()> {
-        let max_turn = math::to_radians(MAX_TURN_DEGREES);
-        let mut previous: Option<(f64, f64)> = None;
         for (a, b) in segments(self.vertices()) {
-            let (sx, sy) = sub(b, a);
-            let length = math::hypot(sx, sy);
+            let length = a.distance_to(b).metres();
             if !length.is_finite() || length < MIN_SEGMENT_METRES {
                 return Err(NavigationError::Degenerate {
                     context: "a guidance curve with a segment shorter than 1 cm",
                 }
                 .into());
             }
-            let direction = (sx / length, sy / length);
-            if let Some(before) = previous {
-                if math::abs(turn(before, direction)) > max_turn {
-                    return Err(NavigationError::Degenerate {
-                        context: "a guidance curve that folds back on itself",
-                    }
-                    .into());
-                }
+        }
+        if folds_back(self.vertices()) {
+            return Err(NavigationError::Degenerate {
+                context: "a guidance curve that folds back on itself",
             }
-            previous = Some(direction);
+            .into());
         }
         let points = self.vertices();
         let count = points.len().saturating_sub(1);
@@ -371,46 +379,368 @@ fn raw_offset<const N: usize, const M: usize>(
     Ok(out)
 }
 
-/// Cuts every loop: while segment `i` meets a later non-adjacent segment `j`,
-/// the vertices between them give way to the meeting point, taking the
-/// latest `j` for the earliest `i`.
-fn cut_loops<const M: usize>(points: &mut Inline<PlanarPoint, M>) {
-    // Each cut removes at least one vertex, so `M` passes suffice.
-    for _ in 0..M {
-        let Some((i, j, meeting)) = first_loop(points.as_slice()) else {
-            return;
-        };
-        // Vertices i+1 ..= j go; the meeting point takes their place.
-        let mut removed = j.saturating_sub(i);
-        while removed > 0 {
-            if points.remove(i.saturating_add(1)).is_none() {
-                return;
+/// Crossing of the raw parallel curve with itself, at `key` along it:
+/// segment index plus the fraction of the segment, below 0 on the run-in and
+/// beyond the last vertex on the run-out.
+#[derive(Debug, Clone, Copy)]
+struct Split {
+    key: f64,
+    at: (f64, f64),
+    /// Index of the crossing; each appears twice.
+    crossing: usize,
+}
+
+const NO_SPLIT: Split = Split {
+    key: 0.0,
+    at: (0.0, 0.0),
+    crossing: 0,
+};
+
+/// The piece of the exact parallel curve that runs on to both ends, traced
+/// along the raw parallel curve `raw` (see [`CurveLine::offset`]).
+fn trace<const N: usize, const M: usize>(
+    curve: &CurveLine<N>,
+    raw: &[PlanarPoint],
+    d: f64,
+    bound: f64,
+    tolerance: f64,
+) -> Result<Inline<PlanarPoint, M>> {
+    let collapses = || NavigationError::OffsetCollapses { distance: d };
+    let full = |context| KernelError::CapacityExceeded {
+        context,
+        needed: M.saturating_add(1),
+        capacity: M,
+    };
+    let path = without_repeats::<M>(raw);
+    let path = path.as_slice();
+    let last = path.len().checked_sub(2).ok_or_else(collapses)?;
+    let on_curve = |at: (f64, f64)| -> Result<bool> {
+        let offset = curve
+            .station(PlanarPoint::from_metres(at.0, at.1)?)
+            .offset
+            .metres();
+        Ok(math::abs(offset - d) <= bound)
+    };
+    let splits = crossings::<M>(path, last, on_curve)?;
+    let splits = splits.as_slice();
+    // Slice `s` runs from split `s − 1` (the run-in for 0) to split `s` (the
+    // run-out for the last).
+    let slices = splits.len().saturating_add(1);
+    let mut used = Inline::<bool, M>::new(false);
+    for _ in 0..slices {
+        used.push(false)
+            .map_err(|_| full("the crossings of a parallel curve"))?;
+    }
+    let valid = |slice: usize| -> Result<bool> {
+        let from = slice
+            .checked_sub(1)
+            .and_then(|s| splits.get(s))
+            .map(|s| s.key);
+        let to = splits.get(slice).map(|s| s.key);
+        slice_is_valid(curve, path, last, from, to, d, bound)
+    };
+    let mut out = Inline::<PlanarPoint, M>::new(PlanarPoint::ORIGIN);
+    let mut emit = |xy: (f64, f64)| -> Result<()> {
+        out.push(PlanarPoint::from_metres(xy.0, xy.1)?)
+            .map_err(|_| full("a parallel curve after its loops are cut"))?;
+        Ok(())
+    };
+    if !valid(0)? {
+        return Err(collapses().into());
+    }
+    let run = math::abs(d).max(1.0);
+    let mut slice = 0;
+    for _ in 0..slices {
+        if let Some(flag) = used.as_mut_slice().get_mut(slice) {
+            *flag = true;
+        }
+        let from = slice.checked_sub(1).and_then(|s| splits.get(s));
+        let to = splits.get(slice);
+        let from_key = match from {
+            Some(split) => {
+                emit(split.at)?;
+                split.key
             }
-            removed -= 1;
+            // From the first vertex, or the run-in if crossed before it.
+            None => match to {
+                Some(first) if first.key < 0.0 => {
+                    emit(along(path, last, first.key - run / segment_length(path, 0)))?;
+                    first.key
+                }
+                _ => -1.0,
+            },
+        };
+        let to_key = to.map_or(f64::INFINITY, |s| s.key);
+        for (m, vertex) in path.iter().enumerate() {
+            let key = math::count_to_f64(m);
+            if key > from_key && key <= to_key {
+                emit(*vertex)?;
+            }
         }
-        if points.insert(i.saturating_add(1), meeting).is_err() {
-            return;
+        let Some(end) = to else {
+            // To the last vertex, or the run-out if crossed beyond it.
+            if from_key >= math::count_to_f64(last.saturating_add(1)) {
+                emit(along(
+                    path,
+                    last,
+                    from_key + run / segment_length(path, last),
+                ))?;
+            }
+            break;
+        };
+        slice = onward(splits, slice, end, used.as_slice(), &valid)?
+            .ok_or(AgriError::PassSplits { distance: d })?;
+    }
+    if closes_a_pocket(splits, path, used.as_mut_slice(), &valid, bound, tolerance)? {
+        return Err(AgriError::PassSplits { distance: d });
+    }
+    Ok(out)
+}
+
+/// Vertices without repeats, so every segment has a direction.
+fn without_repeats<const M: usize>(raw: &[PlanarPoint]) -> Inline<(f64, f64), M> {
+    let mut path = Inline::<(f64, f64), M>::new((0.0, 0.0));
+    for point in raw {
+        let xy = (point.east_metres(), point.north_metres());
+        let repeat = path
+            .as_slice()
+            .last()
+            .is_some_and(|last| math::hypot(xy.0 - last.0, xy.1 - last.1) < 1e-9);
+        if !repeat {
+            // No longer than `raw`, which fits in `M`.
+            let _ = path.push(xy);
         }
+    }
+    path
+}
+
+/// Whether what is left of the parallel curve after the traced piece holds a
+/// pocket: a loop that closes at the crossing it starts from and encloses
+/// ground. A loop within the bound throughout but thin is a step back inside
+/// a gentle bend; a chain that does not close is a crumb where the curve
+/// pinches off.
+fn closes_a_pocket(
+    splits: &[Split],
+    path: &[(f64, f64)],
+    used: &mut [bool],
+    valid: &impl Fn(usize) -> Result<bool>,
+    bound: f64,
+    tolerance: f64,
+) -> Result<bool> {
+    for first in 1..splits.len() {
+        if used.get(first).is_none_or(|u| *u) || !valid(first)? {
+            continue;
+        }
+        let (mut length, mut twice_area) = (0.0, 0.0);
+        let start = first.checked_sub(1).and_then(|s| splits.get(s));
+        let mut closes = false;
+        let mut slice = first;
+        for _ in 0..used.len() {
+            if let Some(flag) = used.get_mut(slice) {
+                *flag = true;
+            }
+            let (Some(from), Some(end)) = (
+                slice.checked_sub(1).and_then(|s| splits.get(s)),
+                splits.get(slice),
+            ) else {
+                break;
+            };
+            let mut previous = from.at;
+            let vertices = path.iter().enumerate().filter_map(|(m, vertex)| {
+                let key = math::count_to_f64(m);
+                (key > from.key && key < end.key).then_some(*vertex)
+            });
+            for point in vertices.chain(core::iter::once(end.at)) {
+                length += math::hypot(point.0 - previous.0, point.1 - previous.1);
+                twice_area += previous.0 * point.1 - point.0 * previous.1;
+                previous = point;
+            }
+            if start.is_some_and(|s| s.crossing == end.crossing) {
+                closes = true;
+                break;
+            }
+            match onward(splits, slice, end, used, valid)? {
+                Some(next) => slice = next,
+                None => break,
+            }
+        }
+        if closes && length > 10.0 * tolerance && math::abs(twice_area) > 4.0 * bound * length {
+            return Ok(true);
+        }
+    }
+    Ok(false)
+}
+
+/// Slice that the parallel curve takes on from the end of `slice` at the
+/// crossing `end`: across the loop if that piece holds, else straight on;
+/// `None` if neither is free and valid.
+fn onward(
+    splits: &[Split],
+    slice: usize,
+    end: &Split,
+    used: &[bool],
+    valid: &impl Fn(usize) -> Result<bool>,
+) -> Result<Option<usize>> {
+    let partner = splits
+        .iter()
+        .enumerate()
+        .position(|(index, s)| index != slice && s.crossing == end.crossing);
+    let across = partner.map(|p| p.saturating_add(1));
+    let straight = slice.saturating_add(1);
+    for candidate in [across, Some(straight)].into_iter().flatten() {
+        let free = used.get(candidate).is_some_and(|u| !u);
+        if free && valid(candidate)? {
+            return Ok(Some(candidate));
+        }
+    }
+    Ok(None)
+}
+
+/// Crossings of the path with itself, the first segment extended back and the
+/// last on, sorted along the path: those on the exact parallel curve, where
+/// it turns from one side's offset to another's. Elsewhere both pieces are
+/// off it, and whether a piece holds changes only at such a crossing.
+fn crossings<const M: usize>(
+    path: &[(f64, f64)],
+    last: usize,
+    on_curve: impl Fn((f64, f64)) -> Result<bool>,
+) -> Result<Inline<Split, M>> {
+    let mut splits = Inline::<Split, M>::new(NO_SPLIT);
+    let mut count = 0;
+    for i in 0..=last {
+        for j in i.saturating_add(2)..=last {
+            let (Some(start), Some(stop), Some(other), Some(other_stop)) = (
+                path.get(i),
+                path.get(i.saturating_add(1)),
+                path.get(j),
+                path.get(j.saturating_add(1)),
+            ) else {
+                continue;
+            };
+            let (rx, ry) = (stop.0 - start.0, stop.1 - start.1);
+            let (sx, sy) = (other_stop.0 - other.0, other_stop.1 - other.1);
+            let denominator = rx * sy - ry * sx;
+            if denominator == 0.0 {
+                continue;
+            }
+            let (qx, qy) = (other.0 - start.0, other.1 - start.1);
+            let on_first = (qx * sy - qy * sx) / denominator;
+            let on_second = (qx * ry - qy * rx) / denominator;
+            // A vertex belongs to the segment it starts.
+            let first_in = (i == 0 || on_first >= 0.0) && on_first < 1.0;
+            let second_in = on_second >= 0.0 && (j == last || on_second < 1.0);
+            if !(first_in && second_in && on_first.is_finite() && on_second.is_finite()) {
+                continue;
+            }
+            let at = (start.0 + on_first * rx, start.1 + on_first * ry);
+            if !on_curve(at)? {
+                continue;
+            }
+            for key in [
+                math::count_to_f64(i) + on_first,
+                math::count_to_f64(j) + on_second,
+            ] {
+                splits
+                    .push(Split {
+                        key,
+                        at,
+                        crossing: count,
+                    })
+                    .map_err(|_| KernelError::CapacityExceeded {
+                        context: "the crossings of a parallel curve",
+                        needed: M.saturating_add(1),
+                        capacity: M,
+                    })?;
+            }
+            count += 1;
+        }
+    }
+    // Insertion sort by key: a few crossings.
+    let sorted = splits.as_mut_slice();
+    for k in 1..sorted.len() {
+        let mut m = k;
+        while m > 0 {
+            let (Some(before), Some(here)) = (sorted.get(m - 1), sorted.get(m)) else {
+                break;
+            };
+            if before.key <= here.key {
+                break;
+            }
+            sorted.swap(m - 1, m);
+            m -= 1;
+        }
+    }
+    Ok(splits)
+}
+
+/// Point at `key` along the path, the end segments extended.
+fn along(path: &[(f64, f64)], last: usize, key: f64) -> (f64, f64) {
+    let k = if key <= 0.0 {
+        0
+    } else {
+        math::to_usize(math::trunc(key)).min(last)
+    };
+    let t = key - math::count_to_f64(k);
+    match (path.get(k), path.get(k.saturating_add(1))) {
+        (Some(a), Some(b)) => (a.0 + t * (b.0 - a.0), a.1 + t * (b.1 - a.1)),
+        _ => (0.0, 0.0),
     }
 }
 
-fn first_loop(points: &[PlanarPoint]) -> Option<(usize, usize, PlanarPoint)> {
-    let count = points.len().saturating_sub(1);
-    for i in 0..count {
-        let Some((a, b)) = segment(points, i) else {
-            continue;
+fn segment_length(path: &[(f64, f64)], k: usize) -> f64 {
+    match (path.get(k), path.get(k.saturating_add(1))) {
+        (Some(a), Some(b)) => math::hypot(b.0 - a.0, b.1 - a.1).max(f64::MIN_POSITIVE),
+        _ => 1.0,
+    }
+}
+
+/// Breaks of a slice: its ends and the vertices between, `None` for an end
+/// that runs on; consecutive breaks lie on one segment.
+fn breaks(
+    last: usize,
+    from: Option<f64>,
+    to: Option<f64>,
+) -> impl Iterator<Item = (Option<f64>, Option<f64>)> {
+    let lo = from.unwrap_or(f64::NEG_INFINITY);
+    let hi = to.unwrap_or(f64::INFINITY);
+    let vertices = (0..=last.saturating_add(1))
+        .map(math::count_to_f64)
+        .filter(move |&key| key > lo && key < hi);
+    let points = core::iter::once(from)
+        .chain(vertices.map(Some))
+        .chain(core::iter::once(to));
+    let ahead = points.clone().skip(1);
+    points.zip(ahead)
+}
+
+/// Whether a slice lies on the exact parallel curve: the middle of each of
+/// its pieces between breaks, a point one segment out on a run-on.
+fn slice_is_valid<const N: usize>(
+    curve: &CurveLine<N>,
+    path: &[(f64, f64)],
+    last: usize,
+    from: Option<f64>,
+    to: Option<f64>,
+    d: f64,
+    bound: f64,
+) -> Result<bool> {
+    for piece in breaks(last, from, to) {
+        let key = match piece {
+            (Some(a), Some(b)) => f64::midpoint(a, b),
+            (None, Some(b)) => b - 1.0,
+            (Some(a), None) => a + 1.0,
+            (None, None) => 0.5,
         };
-        // The latest meeting segment, searched from the end.
-        for j in (i.saturating_add(2)..count).rev() {
-            let Some((c, d)) = segment(points, j) else {
-                continue;
-            };
-            if let Some(meeting) = intersection(a, b, c, d) {
-                return Some((i, j, meeting));
-            }
+        let (x, y) = along(path, last, key);
+        let offset = curve
+            .station(PlanarPoint::from_metres(x, y)?)
+            .offset
+            .metres();
+        if math::abs(offset - d) > bound {
+            return Ok(false);
         }
     }
-    None
+    Ok(true)
 }
 
 /// Segment `i`: vertices `i` and `i + 1`.
@@ -510,6 +840,64 @@ impl<const N: usize> ContourRecorder<N> {
     }
 }
 
+/// Whether the run-in (the first segment extended back) or the run-out (the
+/// last extended on) meets the other or a segment it does not adjoin.
+fn run_ons_cross(points: &[PlanarPoint]) -> bool {
+    let xy = |p: &PlanarPoint| (p.east_metres(), p.north_metres());
+    let (Some(first), Some(second)) = (points.first(), points.get(1)) else {
+        return false;
+    };
+    let (Some(end), Some(before_end)) = (
+        points.last(),
+        points.len().checked_sub(2).and_then(|i| points.get(i)),
+    ) else {
+        return false;
+    };
+    let (p0, p1, pn, pm) = (xy(first), xy(second), xy(end), xy(before_end));
+    let run_in = (p0, (p0.0 - p1.0, p0.1 - p1.1));
+    let run_out = (pn, (pn.0 - pm.0, pn.1 - pm.1));
+    // Ray from `origin` along `ray` against segment `a`–`b`, or another ray
+    // when `unbounded`; the ray's own origin excluded.
+    let meets =
+        |(origin, ray): ((f64, f64), (f64, f64)), a: (f64, f64), b: (f64, f64), unbounded: bool| {
+            let (sx, sy) = (b.0 - a.0, b.1 - a.1);
+            let denominator = ray.0 * sy - ray.1 * sx;
+            if denominator == 0.0 {
+                return false;
+            }
+            let (qx, qy) = (a.0 - origin.0, a.1 - origin.1);
+            let t = (qx * sy - qy * sx) / denominator;
+            let u = (qx * ray.1 - qy * ray.0) / denominator;
+            t > 0.0 && u >= 0.0 && (unbounded || u <= 1.0)
+        };
+    let count = points.len().saturating_sub(1);
+    if count >= 2 && meets(run_in, pn, (pn.0 + run_out.1 .0, pn.1 + run_out.1 .1), true) {
+        return true;
+    }
+    for i in 0..count {
+        let Some((a, b)) = segment(points, i) else {
+            continue;
+        };
+        let (a, b) = (xy(&a), xy(&b));
+        if i > 0 && meets(run_in, a, b, false) {
+            return true;
+        }
+        if i.saturating_add(1) < count && meets(run_out, a, b, false) {
+            return true;
+        }
+    }
+    false
+}
+
+/// Whether a vertex turns sharper than [`MAX_TURN_DEGREES`].
+fn folds_back(points: &[PlanarPoint]) -> bool {
+    let max_turn = math::to_radians(MAX_TURN_DEGREES);
+    points.windows(3).any(|three| match three {
+        [a, b, c] => math::abs(turn(unit(sub(*b, *a)), unit(sub(*c, *b)))) > max_turn,
+        _ => false,
+    })
+}
+
 /// Consecutive pairs of vertices.
 fn segments(points: &[PlanarPoint]) -> impl Iterator<Item = (PlanarPoint, PlanarPoint)> + '_ {
     points.iter().copied().zip(points.iter().copied().skip(1))
@@ -556,30 +944,6 @@ fn segments_meet(
         || (o2 == 0.0 && within(a, b, d))
         || (o3 == 0.0 && within(c, d, a))
         || (o4 == 0.0 && within(c, d, b))
-}
-
-/// Meeting point of two segments, if they cross or touch at one point.
-fn intersection(
-    first_start: PlanarPoint,
-    first_end: PlanarPoint,
-    second_start: PlanarPoint,
-    second_end: PlanarPoint,
-) -> Option<PlanarPoint> {
-    let (a, c) = (first_start, second_start);
-    let (rx, ry) = sub(first_end, a);
-    let (sx, sy) = sub(second_end, c);
-    let denominator = rx * sy - ry * sx;
-    if denominator == 0.0 {
-        return None;
-    }
-    let (qx, qy) = sub(c, a);
-    let t = (qx * sy - qy * sx) / denominator;
-    let u = (qx * ry - qy * rx) / denominator;
-    if (0.0..=1.0).contains(&t) && (0.0..=1.0).contains(&u) {
-        PlanarPoint::from_metres(a.east_metres() + t * rx, a.north_metres() + t * ry).ok()
-    } else {
-        None
-    }
 }
 
 /// Twice the signed area of triangle `a`, `b`, `c`.

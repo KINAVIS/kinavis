@@ -31,7 +31,8 @@ println!("{} at {:.2} m from the line", passes.pass_at(offset), offset.metres())
 - **Passes**: working width, overlap, shift and nudge; the pass at a point,
   cross-track error with its side, heading error, distance to the field
   boundary ahead. Passes of a curve are its exact parallel curves: arcs
-  outside bends, loops inside cut.
+  outside bends, loops inside cut; a pass that parts into pieces, round a
+  bend of more than half a turn, is reported, not joined up.
 - **Tracker**: hysteresis between passes, a lock, and events: pass changed,
   end of pass approaching, off line.
 - **Tilt compensation**: the control point under a rolled and pitched
