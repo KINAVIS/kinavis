@@ -4,7 +4,8 @@
 //! The output is a wheel angle to command, not control of the machine: the
 //! actuator, its loop and its safety are the caller's. Angles follow the body
 //! frame (forward, right, down): a positive wheel angle and a positive
-//! curvature turn the machine to the right.
+//! curvature turn the machine to the right going forward, to the left in
+//! reverse.
 
 use core::time::Duration;
 
@@ -134,28 +135,48 @@ pub struct SteeringCommand {
     pub curvature: f64,
 }
 
-/// Rear axle position, heading and forward speed of a machine.
+/// Rear axle position, heading and speed of a machine.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct VehicleState {
     /// Middle of the rear axle, in the field plane.
     pub position: PlanarPoint,
     /// Grid heading.
     pub heading: GridCourse,
-    /// Forward speed; reversing is not tracked.
+    /// Speed along the heading, negative in reverse.
     pub speed: Speed,
+}
+
+impl VehicleState {
+    /// Whether the machine is reversing.
+    #[must_use]
+    pub fn is_reversing(&self) -> bool {
+        self.speed.metres_per_second() < 0.0
+    }
+
+    /// Grid course of the motion: the heading, its reciprocal in reverse.
+    #[must_use]
+    pub fn travel(&self) -> GridCourse {
+        if self.is_reversing() {
+            self.heading.reciprocal()
+        } else {
+            self.heading
+        }
+    }
 }
 
 /// Role of a pass tracker: the wheel angle that brings a machine onto a pass
 /// and holds it there.
 ///
-/// The pass is followed in the direction of travel nearest the heading, as
-/// [`crate::locate`] takes it.
+/// The pass is followed in the direction along it nearest the direction of
+/// motion, [`VehicleState::travel`], as [`crate::locate`] takes it for that
+/// course: the machine reverses along a pass when its speed is negative.
 pub trait PathTracker {
     /// Command for one step.
     ///
     /// # Errors
     ///
-    /// [`kinavis_kernel::KernelError::OutOfRange`] for a negative speed.
+    /// [`kinavis_kernel::KernelError::OutOfRange`] for a speed beyond
+    /// 100 m/s either way.
     fn steer<L: ReferenceLine>(
         &self,
         line: &L,
@@ -178,6 +199,10 @@ pub trait PathTracker {
 /// overshoots, the more so with the wheels at their stop. With an intercept
 /// angle θ ([`PurePursuit::with_intercept`]) the look-ahead is stretched to
 /// `|e| / sin θ`, so the pass is approached at θ at most.
+///
+/// In reverse the goal is behind the machine and the arc the same: the rear
+/// axle moves on a circle tangent to the heading in either gear, and the
+/// wheel angle that gives it is of the opposite sign.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct PurePursuit {
     base: f64,
@@ -238,7 +263,7 @@ impl PurePursuit {
     }
 
     fn look_ahead_metres(&self, speed: f64) -> f64 {
-        (self.base + self.gain * speed.max(0.0)).min(self.max)
+        (self.base + self.gain * math::abs(speed)).min(self.max)
     }
 }
 
@@ -251,9 +276,10 @@ impl PathTracker for PurePursuit {
         vehicle: &VehicleGeometry,
         state: &VehicleState,
     ) -> Result<SteeringCommand> {
-        let speed = forward_speed(state)?;
+        let speed = checked_speed(state)?;
         let target = pattern.offset_metres(pass);
-        let forward = travels_forward(line, state.position, state.heading);
+        let travel = state.travel();
+        let forward = travels_forward(line, state.position, travel);
         let rear = state.position;
         let foot = project(line, target, rear);
         let mut look_ahead = self.look_ahead_metres(speed);
@@ -279,9 +305,10 @@ impl PathTracker for PurePursuit {
             goal.east_metres() - rear.east_metres(),
             goal.north_metres() - rear.north_metres(),
         );
-        let alpha = wrap_pi(bearing - state.heading.radians());
+        let alpha = wrap_pi(bearing - travel.radians());
+        // Curvature of the motion, right positive.
         let curvature = 2.0 * math::sin(alpha) / look_ahead;
-        Ok(vehicle.command(math::atan(vehicle.wheelbase * curvature)))
+        Ok(vehicle.command(math::atan(vehicle.wheelbase * gear_sign(state) * curvature)))
     }
 }
 
@@ -294,6 +321,16 @@ impl PathTracker for PurePursuit {
 /// supplies the wheel angle a curve needs, so the front axle settles on a
 /// pass of constant curvature; the rear axle then runs `R − √(R² − L²)`
 /// inside it, 5.8 cm for a 2.9 m wheelbase on a 72 m circle.
+///
+/// In reverse the steered axle trails and holding it on the pass would
+/// leave the heading free to jackknife. The rear axle, which leads, is
+/// guided instead, its heading turned towards the angle that closes the
+/// cross-track error, with the wheel angle of the pass's curvature fed
+/// forward: `δ = −atan(L·κ) + ψₑ + atan(k·e / (|v| + v_s))`, ψₑ and e of
+/// the rear axle against the motion, κ of the pass, right positive. On a
+/// straight pass the error then rings as a second-order system of natural
+/// frequency `√(k·|v| / L)` and damping `½·√(|v| / (k·L))`: settled
+/// reversing wants a smaller gain than driving forward.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Stanley {
     gain: f64,
@@ -331,17 +368,27 @@ impl PathTracker for Stanley {
         vehicle: &VehicleGeometry,
         state: &VehicleState,
     ) -> Result<SteeringCommand> {
-        let speed = forward_speed(state)?;
-        let front = vehicle.front_axle(state.position, state.heading);
-        let view = crate::tracker::locate_pass(line, pattern, front, state.heading, pass);
+        let speed = math::abs(checked_speed(state)?) + self.softening;
+        let travel = state.travel();
+        let guided = if state.is_reversing() {
+            state.position
+        } else {
+            vehicle.front_axle(state.position, state.heading)
+        };
+        let view = crate::tracker::locate_pass(line, pattern, guided, travel, pass);
         let cross_track = view.cross_track.metres();
         let heading_error = view.heading_error.radians();
-        let speed = speed + self.softening;
         let correction = if speed > 0.0 {
             math::atan(self.gain * cross_track / speed)
         } else {
             math::copysign(core::f64::consts::FRAC_PI_2, cross_track)
         };
+        if state.is_reversing() {
+            let target = pattern.offset_metres(pass);
+            let curvature = pass_curvature(line, target, guided, !view.reversed);
+            let feed_forward = -math::atan(vehicle.wheelbase * curvature);
+            return Ok(vehicle.command(feed_forward + heading_error + correction));
+        }
         Ok(vehicle.command(-heading_error - correction))
     }
 }
@@ -383,10 +430,48 @@ const MAX_LOOK_AHEAD: f64 = 100.0;
 /// Most steps of a walk along a pass: 100 m at 0.5 m with margin.
 const MAX_STEPS: usize = 512;
 
-fn forward_speed(state: &VehicleState) -> Result<f64> {
+/// Distance either side of a point over which the curvature of a pass is
+/// taken, metres.
+const CURVATURE_SPAN: f64 = 0.1;
+
+fn checked_speed(state: &VehicleState) -> Result<f64> {
     let speed = state.speed.metres_per_second();
-    ensure_range("forward speed, m/s", speed, 0.0, 100.0)?;
+    ensure_range("speed, m/s", speed, -100.0, 100.0)?;
     Ok(speed)
+}
+
+/// +1 forward, −1 in reverse: the sign that turns the curvature of the
+/// motion into that of the body.
+fn gear_sign(state: &VehicleState) -> f64 {
+    if state.is_reversing() {
+        -1.0
+    } else {
+        1.0
+    }
+}
+
+/// Curvature of the pass at `point`, 1/m, right positive along the travel:
+/// the turn of its direction over [`CURVATURE_SPAN`] either side.
+fn pass_curvature<L: ReferenceLine>(
+    line: &L,
+    target: f64,
+    point: PlanarPoint,
+    forward: bool,
+) -> f64 {
+    let foot = project(line, target, point);
+    let behind = advance(line, target, foot, CURVATURE_SPAN, !forward);
+    let ahead = advance(line, target, foot, CURVATURE_SPAN, forward);
+    let span = distance(behind, ahead);
+    if span <= 0.0 {
+        return 0.0;
+    }
+    // Reference directions: their difference is that of the travel when it
+    // runs either way along them.
+    let turn = line
+        .station(behind)
+        .direction
+        .signed_difference(line.station(ahead).direction);
+    math::to_radians(turn) / span
 }
 
 fn travels_forward<L: ReferenceLine>(line: &L, at: PlanarPoint, heading: GridCourse) -> bool {
@@ -567,12 +652,27 @@ mod tests {
         let command = pursuit.steer(&line, &pattern, PassIndex::REFERENCE, &vehicle, &state)?;
         let expected = math::atan(2.9 * 2.0 * (-1.0 / 5.5) / 5.5);
         assert!((command.angle.radians() - expected).abs() < 1e-9);
+        // Facing south and backing north from the same place: the mirror
+        // image, the wheels turned the other way.
         let reversing = VehicleState {
-            speed: Speed::from_metres_per_second(-1.0)?,
+            heading: GridCourse::new(180.0)?,
+            speed: Speed::from_metres_per_second(-3.0)?,
+            ..state
+        };
+        for command in [
+            pursuit.steer(&line, &pattern, PassIndex::REFERENCE, &vehicle, &reversing)?,
+            stanley.steer(&line, &pattern, PassIndex::REFERENCE, &vehicle, &reversing)?,
+        ] {
+            assert!(command.angle.degrees() > 0.0 && command.curvature > 0.0);
+        }
+        let command = pursuit.steer(&line, &pattern, PassIndex::REFERENCE, &vehicle, &reversing)?;
+        assert!((command.angle.radians() + expected).abs() < 1e-9);
+        let too_fast = VehicleState {
+            speed: Speed::from_metres_per_second(-101.0)?,
             ..state
         };
         assert!(stanley
-            .steer(&line, &pattern, PassIndex::REFERENCE, &vehicle, &reversing)
+            .steer(&line, &pattern, PassIndex::REFERENCE, &vehicle, &too_fast)
             .is_err());
         Ok(())
     }

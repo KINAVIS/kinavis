@@ -5,20 +5,22 @@
 //! driven forward or in reverse; a change of gear is a cusp. Onto a pass
 //! closer than two turning radii this is the three-point (fishtail) turn,
 //! shorter than the omega turn of [`TurnPath`](crate::TurnPath), which
-//! never reverses.
+//! never reverses. Each stretch between cusps is a [`GearedSection`], a
+//! reference line the trackers follow in its gear.
 
 // t, u, v, x, y as in the paper.
 #![allow(clippy::many_single_char_names)]
 
+use kinavis::region::PlanarPoint;
 use kinavis_kernel::error::ensure_range;
 use kinavis_kernel::{math, Distance, KernelError};
 
 use crate::error::Result;
 use crate::field::Field;
-use crate::line::{metres, ReferenceLine};
+use crate::line::{metres, ReferenceLine, Station};
 use crate::pass::{PassIndex, PassPattern};
 use crate::plane::FieldPlane;
-use crate::turn::{first_conflict, pass_entry, MathPose, Pose, Steer};
+use crate::turn::{first_conflict, pass_entry, path_foot, Foot, MathPose, Pose, Steer};
 
 const PI: f64 = core::f64::consts::PI;
 const TAU: f64 = core::f64::consts::TAU;
@@ -196,6 +198,40 @@ impl ReedsSheppPath {
             .map(|(along, _)| metres(along * self.radius))
     }
 
+    /// The stretches driven in one gear, in order: one more than the cusps;
+    /// none for a path between equal poses.
+    pub fn sections(&self) -> impl Iterator<Item = GearedSection> + '_ {
+        let segments = self.segments();
+        let mut state = MathPose::of(self.start, self.radius);
+        let mut along = 0.0;
+        let mut first = 0;
+        core::iter::from_fn(move || {
+            let gear = segments.get(first)?.gear();
+            let count = segments
+                .get(first..)?
+                .iter()
+                .take_while(|s| s.gear() == gear)
+                .count();
+            let mut section = GearedSection {
+                plane: self.plane,
+                start: state,
+                radius: self.radius,
+                gear,
+                from: along,
+                segments: [Segment::NONE; MAX_REVERSING_PIECES],
+                count,
+            };
+            let own = segments.get(first..first + count)?;
+            for (slot, segment) in section.segments.iter_mut().zip(own) {
+                *slot = *segment;
+                state = state.advance(segment.steer, segment.length);
+                along += math::abs(segment.length);
+            }
+            first += count;
+            Some(section)
+        })
+    }
+
     /// Gear at a distance along the path: of the piece being driven, the
     /// next one at a cusp; forward for a path of no length.
     #[must_use]
@@ -255,6 +291,107 @@ impl ReedsSheppPath {
         first_conflict(field, half_width, step, self.length(), |along| {
             self.pose_at(along).position
         })
+    }
+}
+
+/// Stretch of a [`ReedsSheppPath`] driven in one gear: from the start or a
+/// cusp to the next cusp or the end.
+///
+/// As a [`ReferenceLine`] its direction is the direction of travel, against
+/// the machine's heading in reverse, and offsets are left of the travel; the
+/// trackers follow it in reverse when given a negative speed. Beyond its ends
+/// it runs on straight.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct GearedSection {
+    plane: FieldPlane,
+    /// Machine pose at the start, in radii.
+    start: MathPose,
+    radius: f64,
+    gear: Gear,
+    /// Distance along the path to the start, in radii.
+    from: f64,
+    segments: [Segment; MAX_REVERSING_PIECES],
+    count: usize,
+}
+
+impl GearedSection {
+    /// Gear.
+    #[must_use]
+    pub const fn gear(&self) -> Gear {
+        self.gear
+    }
+
+    /// Distance along the path at which the section starts.
+    #[must_use]
+    pub fn start(&self) -> Distance {
+        metres(self.from * self.radius)
+    }
+
+    /// Length.
+    #[must_use]
+    pub fn length(&self) -> Distance {
+        metres(self.length_radii() * self.radius)
+    }
+
+    fn length_radii(&self) -> f64 {
+        self.segments().iter().map(|s| math::abs(s.length)).sum()
+    }
+
+    fn segments(&self) -> &[Segment] {
+        self.segments.get(..self.count).unwrap_or(&[])
+    }
+
+    /// Machine pose at the start.
+    #[must_use]
+    pub fn start_pose(&self) -> Pose {
+        self.start.pose(self.radius)
+    }
+
+    /// Machine pose at the end: the next cusp, or the end of the path.
+    #[must_use]
+    pub fn end_pose(&self) -> Pose {
+        self.segments()
+            .iter()
+            .fold(self.start, |state, s| state.advance(s.steer, s.length))
+            .pose(self.radius)
+    }
+
+    /// Distance left to drive from the point of the section nearest `point`
+    /// to its end; negative past the end, beyond the length before the start.
+    #[must_use]
+    pub fn remaining(&self, point: PlanarPoint) -> Distance {
+        metres((self.length_radii() - self.foot(point).along) * self.radius)
+    }
+
+    /// Nearest point, the pieces taken as driven forward along the travel:
+    /// in reverse the heading is turned round and the steer mirrored.
+    fn foot(&self, point: PlanarPoint) -> Foot {
+        let reverse = self.gear == Gear::Reverse;
+        let start = if reverse {
+            MathPose {
+                heading: self.start.heading + PI,
+                ..self.start
+            }
+        } else {
+            self.start
+        };
+        let pieces = self.segments().iter().map(move |s| {
+            let steer = if reverse { mirrored(s.steer) } else { s.steer };
+            (steer, math::abs(s.length))
+        });
+        path_foot(start, pieces, point, self.radius)
+    }
+}
+
+impl ReferenceLine for GearedSection {
+    fn plane(&self) -> &FieldPlane {
+        &self.plane
+    }
+
+    /// Nearest point of the pieces, or of the straight run-ons beyond the
+    /// ends; the direction is that of travel.
+    fn station(&self, point: PlanarPoint) -> Station {
+        self.foot(point).station(self.radius)
     }
 }
 

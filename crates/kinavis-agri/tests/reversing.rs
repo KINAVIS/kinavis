@@ -1,6 +1,7 @@
 //! Turns that reverse: Reeds–Shepp paths against OMPL, never longer than
 //! Dubins, the gear against the motion, the fishtail onto a close pass and
-//! its fit in a headland the omega turn does not fit.
+//! its fit in a headland the omega turn does not fit, its sections between
+//! cusps as reference lines, driven by both trackers.
 
 #![allow(
     clippy::expect_used,
@@ -12,12 +13,15 @@
 )]
 
 use core::f64::consts::{PI, TAU};
+use core::time::Duration;
 
 use kinavis::region::{PlanarPoint, Polygon, Region};
 use kinavis_agri::{
-    AbLine, Field, FieldPlane, Gear, PassIndex, PassPattern, Pose, ReedsSheppPath, Steer, TurnPath,
+    bicycle_step, AbLine, Field, FieldPlane, Gear, GearedSection, PassIndex, PassPattern,
+    PathTracker, Pose, PurePursuit, ReedsSheppPath, ReferenceLine, Stanley, Steer, TurnPath,
+    VehicleGeometry, VehicleState,
 };
-use kinavis_kernel::{Distance, GridCourse, Height, Position};
+use kinavis_kernel::{Angle, Distance, GridCourse, Height, Position, RateOfTurn, Speed};
 use proptest::prelude::*;
 
 const REFERENCE: &str = include_str!("data/reeds_shepp_reference.txt");
@@ -333,5 +337,231 @@ proptest! {
         prop_assert!(path.pieces().count() <= kinavis_agri::MAX_REVERSING_PIECES);
         let cusps = path.cusps().count();
         prop_assert!(cusps < path.pieces().count().max(1));
+    }
+}
+
+/// Course of the motion at a pose along a section.
+fn travel(pose: Pose, gear: Gear) -> GridCourse {
+    match gear {
+        Gear::Forward => pose.course,
+        Gear::Reverse => pose.course.reciprocal(),
+    }
+}
+
+/// The sections against the path: one more than the cusps, end to end,
+/// alternating gears, each a reference line through its own pieces with the
+/// direction of travel.
+fn check_sections(path: &ReedsSheppPath) {
+    let sections: Vec<GearedSection> = path.sections().collect();
+    if path.pieces().count() == 0 {
+        assert_eq!(sections, []);
+        return;
+    }
+    assert_eq!(sections.len(), path.cusps().count() + 1);
+    let mut along = 0.0;
+    for (index, section) in sections.iter().enumerate() {
+        assert!((section.start().metres() - along).abs() < 1e-9);
+        if let Some(next) = sections.get(index + 1) {
+            assert_ne!(section.gear(), next.gear());
+        }
+        let length = section.length().metres();
+        let start = path.pose_at(metres(along));
+        assert!(
+            start
+                .position
+                .distance_to(section.start_pose().position)
+                .metres()
+                < 1e-9
+        );
+        assert!(start.course.angular_distance(section.start_pose().course) < 1e-7);
+        let end = path.pose_at(metres(along + length));
+        assert!(
+            end.position
+                .distance_to(section.end_pose().position)
+                .metres()
+                < 1e-9
+        );
+        for step in 1..20 {
+            let into = length * f64::from(step) / 20.0;
+            let at = path.pose_at(metres(along + into));
+            let station = section.station(at.position);
+            assert!(station.offset.metres().abs() < 1e-9, "{into} into {index}");
+            assert!(
+                station
+                    .direction
+                    .angular_distance(travel(at, section.gear()))
+                    < 1e-6
+            );
+            // Arcs of one section never come back near themselves.
+            let remaining = section.remaining(at.position).metres();
+            assert!((remaining - (length - into)).abs() < 1e-7, "{remaining}");
+        }
+        along += length;
+    }
+    assert!((along - path.length().metres()).abs() < 1e-9);
+}
+
+#[test]
+fn a_fishtail_is_three_sections_and_its_reverse_runs_backwards() {
+    let pattern = PassPattern::new(metres(4.0), Distance::ZERO).expect("a pattern");
+    let turn = ReedsSheppPath::to_pass(&line(), &pattern, exit(), PassIndex::new(1), metres(6.0))
+        .expect("a turn");
+    check_sections(&turn);
+    let gears: Vec<Gear> = turn.sections().map(|s| s.gear()).collect();
+    assert_eq!(gears, [Gear::Forward, Gear::Reverse, Gear::Forward]);
+    let backing = turn.sections().nth(1).expect("a reverse section");
+    // Half a metre left of the travel is half a metre right of the heading.
+    let middle = turn.pose_at(metres(
+        backing.start().metres() + backing.length().metres() / 2.0,
+    ));
+    let (north, east) = middle.course.components(1.0);
+    let right_of_heading = point(
+        middle.position.east_metres() + 0.5 * north,
+        middle.position.north_metres() - 0.5 * east,
+    );
+    let offset = backing.station(right_of_heading).offset.metres();
+    assert!((offset - 0.5).abs() < 1e-9, "{offset}");
+}
+
+/// Worst cross-track error of the rear axle in each section, and its miss
+/// at the end of the turn, driven at 1 m/s with the wheels slewing and a
+/// stop at each cusp while the wheels turn over.
+fn drive<T: PathTracker>(
+    tracker: &T,
+    turn: &ReedsSheppPath,
+    vehicle: &VehicleGeometry,
+) -> (Vec<f64>, f64, f64) {
+    let pattern = PassPattern::new(metres(1.0), Distance::ZERO).expect("a pattern");
+    let dt = Duration::from_millis(20);
+    let start = turn.start();
+    let mut state = VehicleState {
+        position: start.position,
+        heading: start.course,
+        speed: Speed::ZERO,
+    };
+    let mut wheels = Angle::ZERO;
+    let mut worst = Vec::new();
+    for section in turn.sections() {
+        let speed = match section.gear() {
+            Gear::Forward => 1.0,
+            Gear::Reverse => -1.0,
+        };
+        state.speed = Speed::from_metres_per_second(speed).expect("finite");
+        // At a standstill, turn the wheels to the first command.
+        for _ in 0..100 {
+            let command = tracker
+                .steer(&section, &pattern, PassIndex::REFERENCE, vehicle, &state)
+                .expect("a command");
+            wheels = vehicle.slew(wheels, command.angle, dt);
+        }
+        let mut error: f64 = 0.0;
+        let steps = (section.length().metres() / 0.02 * 2.0) as usize;
+        for _ in 0..steps {
+            if section.remaining(state.position).metres() <= 0.0 {
+                break;
+            }
+            let command = tracker
+                .steer(&section, &pattern, PassIndex::REFERENCE, vehicle, &state)
+                .expect("a command");
+            wheels = vehicle.slew(wheels, command.angle, dt);
+            state = bicycle_step(&state, vehicle, wheels, dt).expect("a step");
+            error = error.max(section.station(state.position).offset.metres().abs());
+        }
+        worst.push(error);
+    }
+    let end = turn.end();
+    (
+        worst,
+        state.position.distance_to(end.position).metres(),
+        state.heading.angular_distance(end.course),
+    )
+}
+
+fn turn_vehicle() -> VehicleGeometry {
+    VehicleGeometry::new(
+        metres(2.9),
+        Angle::from_degrees(40.0).expect("finite"),
+        RateOfTurn::from_radians_per_second(30f64.to_radians()).expect("finite"),
+    )
+    .expect("a vehicle")
+}
+
+fn fishtail(width: f64, radius: f64) -> ReedsSheppPath {
+    let pattern = PassPattern::new(metres(width), Distance::ZERO).expect("a pattern");
+    ReedsSheppPath::to_pass(&line(), &pattern, exit(), PassIndex::new(1), metres(radius))
+        .expect("a turn")
+}
+
+#[test]
+fn pure_pursuit_drives_a_fishtail_through_its_cusps() {
+    let pursuit =
+        PurePursuit::new(metres(2.0), Duration::from_millis(500), metres(8.0)).expect("a tracker");
+    for (width, radius) in [(4.0, 6.0), (6.0, 6.0), (3.0, 8.0)] {
+        let turn = fishtail(width, radius);
+        let (worst, miss, heading) = drive(&pursuit, &turn, &turn_vehicle());
+        assert_eq!(worst.len(), 3);
+        // Cutting in where an arc meets the run-on at a cusp: 9 cm at a 2.5 m
+        // look-ahead on a 6 m turn.
+        for error in &worst {
+            assert!(*error < 0.12, "{width} m at {radius} m: {worst:?}");
+        }
+        assert!(miss < 0.1, "{width} m at {radius} m: {miss} m");
+        assert!(heading < 5.0, "{width} m at {radius} m: {heading}°");
+    }
+}
+
+#[test]
+fn stanley_backs_the_rear_axle_round_the_reverse_arc_of_a_fishtail() {
+    let vehicle = turn_vehicle();
+    let pattern = PassPattern::new(metres(1.0), Distance::ZERO).expect("a pattern");
+    let dt = Duration::from_millis(20);
+    for gain in [0.5, 1.0, 2.0] {
+        let stanley = Stanley::new(gain, Speed::from_metres_per_second(0.3).expect("finite"))
+            .expect("a tracker");
+        let section = fishtail(4.0, 6.0)
+            .sections()
+            .nth(1)
+            .expect("a reverse section");
+        let start = section.start_pose();
+        let mut state = VehicleState {
+            position: start.position,
+            heading: start.course,
+            speed: Speed::from_metres_per_second(-1.0).expect("finite"),
+        };
+        let mut wheels = Angle::ZERO;
+        for _ in 0..200 {
+            let command = stanley
+                .steer(&section, &pattern, PassIndex::REFERENCE, &vehicle, &state)
+                .expect("a command");
+            wheels = vehicle.slew(wheels, command.angle, dt);
+        }
+        let mut worst: f64 = 0.0;
+        for _ in 0..5000 {
+            if section.remaining(state.position).metres() <= 0.0 {
+                break;
+            }
+            let command = stanley
+                .steer(&section, &pattern, PassIndex::REFERENCE, &vehicle, &state)
+                .expect("a command");
+            wheels = vehicle.slew(wheels, command.angle, dt);
+            state = bicycle_step(&state, &vehicle, wheels, dt).expect("a step");
+            worst = worst.max(section.station(state.position).offset.metres().abs());
+        }
+        assert!(section.remaining(state.position).metres() <= 0.0);
+        // Without the curvature fed forward the rear axle would settle
+        // (|v| + v_s)·L / (k·R) off the arc: 0.63 m at k = 1.
+        assert!(worst < 0.04, "gain {gain}: {worst} m");
+    }
+}
+
+proptest! {
+    #[test]
+    fn sections_split_the_path_at_its_cusps(
+        x1 in -40.0..40.0f64, y1 in -40.0..40.0f64, h1 in 0.0..TAU,
+        radius in 0.5..15.0f64,
+    ) {
+        let path = ReedsSheppPath::shortest(plane(), pose(0.0, 0.0, 0.0), pose(x1, y1, h1), metres(radius))
+            .expect("a path");
+        check_sections(&path);
     }
 }

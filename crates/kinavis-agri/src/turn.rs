@@ -6,7 +6,7 @@
 //! of the turning radius or a straight: left–straight–left and its kin when
 //! the passes are far enough apart for a U-turn, right–left–right (the omega,
 //! or bulb, turn) when the spacing is under twice the radius. Turns that
-//! reverse (fishtail) are not covered.
+//! reverse (fishtail) are [`ReedsSheppPath`](crate::ReedsSheppPath).
 
 use kinavis::region::{Containment, PlanarPoint};
 use kinavis_kernel::error::ensure_range;
@@ -335,38 +335,15 @@ impl ReferenceLine for TurnPath {
     /// Nearest point of the three pieces, or of the straight run-ons beyond
     /// the ends.
     fn station(&self, point: PlanarPoint) -> Station {
-        let target = (
-            point.east_metres() / self.radius,
-            point.north_metres() / self.radius,
-        );
-        let mut state = MathPose::of(self.start, self.radius);
-        // Run-in: the start course extended backwards.
-        let mut best = straight_station(state, f64::NEG_INFINITY, 0.0, target);
-        for (steer, length) in self.word.steers().into_iter().zip(self.lengths) {
-            let candidate = match steer {
-                Steer::Straight => straight_station(state, 0.0, length, target),
-                Steer::Left | Steer::Right => arc_station(state, steer, length, target),
-            };
-            if candidate.0 < best.0 {
-                best = candidate;
-            }
-            state = state.advance(steer, length);
-        }
-        let run_out = straight_station(state, 0.0, f64::INFINITY, target);
-        if run_out.0 < best.0 {
-            best = run_out;
-        }
-        let (_, offset, heading) = best;
-        Station {
-            offset: metres(offset * self.radius),
-            direction: course_of(math::cos(heading), math::sin(heading)),
-        }
+        let start = MathPose::of(self.start, self.radius);
+        let pieces = self.word.steers().into_iter().zip(self.lengths);
+        path_foot(start, pieces, point, self.radius).station(self.radius)
     }
 }
 
 /// Pose in the normalised mathematical frame: x east, y north, in units of
 /// the radius, heading counter-clockwise from east.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) struct MathPose {
     pub(crate) x: f64,
     pub(crate) y: f64,
@@ -419,32 +396,79 @@ impl MathPose {
     }
 }
 
-/// Distance, signed offset (left positive) and heading at the foot, from a
-/// straight of parameter range `from..to` starting at `pose`.
-pub(crate) fn straight_station(
-    pose: MathPose,
-    from: f64,
-    to: f64,
-    target: (f64, f64),
-) -> (f64, f64, f64) {
+/// Nearest point of a path, in units of the radius.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct Foot {
+    /// Distance from the point.
+    distance: f64,
+    /// Signed offset of the point, left positive.
+    offset: f64,
+    /// Heading of the path at the foot, counter-clockwise from east.
+    heading: f64,
+    /// Distance along the path, negative on the run-in.
+    pub(crate) along: f64,
+}
+
+impl Foot {
+    pub(crate) fn station(self, radius: f64) -> Station {
+        Station {
+            offset: metres(self.offset * radius),
+            direction: course_of(math::cos(self.heading), math::sin(self.heading)),
+        }
+    }
+}
+
+/// Nearest point to `point` of the pieces driven forward from `start`, or of
+/// the straight run-ons beyond the ends.
+pub(crate) fn path_foot(
+    start: MathPose,
+    pieces: impl Iterator<Item = (Steer, f64)>,
+    point: PlanarPoint,
+    radius: f64,
+) -> Foot {
+    let target = (point.east_metres() / radius, point.north_metres() / radius);
+    let mut state = start;
+    // Run-in: the start course extended backwards.
+    let mut best = straight_foot(state, f64::NEG_INFINITY, 0.0, target);
+    let mut along = 0.0;
+    for (steer, length) in pieces {
+        let mut candidate = match steer {
+            Steer::Straight => straight_foot(state, 0.0, length, target),
+            Steer::Left | Steer::Right => arc_foot(state, steer, length, target),
+        };
+        candidate.along += along;
+        if candidate.distance < best.distance {
+            best = candidate;
+        }
+        state = state.advance(steer, length);
+        along += length;
+    }
+    let mut run_out = straight_foot(state, 0.0, f64::INFINITY, target);
+    run_out.along += along;
+    if run_out.distance < best.distance {
+        best = run_out;
+    }
+    best
+}
+
+/// Foot on a straight of parameter range `from..to` starting at `pose`.
+fn straight_foot(pose: MathPose, from: f64, to: f64, target: (f64, f64)) -> Foot {
     let (s, c) = (math::sin(pose.heading), math::cos(pose.heading));
     let (dx, dy) = (target.0 - pose.x, target.1 - pose.y);
     let along = (dx * c + dy * s).max(from).min(to);
     let (fx, fy) = (dx - along * c, dy - along * s);
     let distance = math::hypot(fx, fy);
     let side = c * dy - s * dx;
-    let offset = if side < 0.0 { -distance } else { distance };
-    (distance, offset, pose.heading)
+    Foot {
+        distance,
+        offset: if side < 0.0 { -distance } else { distance },
+        heading: pose.heading,
+        along,
+    }
 }
 
-/// As [`straight_station`] for an arc of unit radius and the given swept
-/// angle.
-pub(crate) fn arc_station(
-    pose: MathPose,
-    steer: Steer,
-    sweep: f64,
-    target: (f64, f64),
-) -> (f64, f64, f64) {
+/// As [`straight_foot`] for an arc of unit radius and the given swept angle.
+fn arc_foot(pose: MathPose, steer: Steer, sweep: f64, target: (f64, f64)) -> Foot {
     let sign = if steer == Steer::Left { 1.0 } else { -1.0 };
     let (s, c) = (math::sin(pose.heading), math::cos(pose.heading));
     // Centre on the inside of the turn.
@@ -457,15 +481,18 @@ pub(crate) fn arc_station(
     let turned = (sign * (angle - start)).wrap_tau();
     if turned <= sweep {
         // Left arc: the centre is left, inside is left.
-        let offset = sign * (1.0 - r);
-        let heading = pose.heading + sign * turned;
-        return (math::abs(r - 1.0), offset, heading);
+        return Foot {
+            distance: math::abs(r - 1.0),
+            offset: sign * (1.0 - r),
+            heading: pose.heading + sign * turned,
+            along: turned,
+        };
     }
     // Nearer end of the arc.
-    let end = pose.advance(steer, sweep);
-    let to_start = straight_station(pose, 0.0, 0.0, target);
-    let to_end = straight_station(end, 0.0, 0.0, target);
-    if to_start.0 <= to_end.0 {
+    let to_start = straight_foot(pose, 0.0, 0.0, target);
+    let mut to_end = straight_foot(pose.advance(steer, sweep), 0.0, 0.0, target);
+    to_end.along = sweep;
+    if to_start.distance <= to_end.distance {
         to_start
     } else {
         to_end

@@ -67,7 +67,10 @@
 //!
 //! [`ReedsSheppPath`] is the same with reversing allowed: up to five pieces,
 //! each forward or in reverse. Onto a close pass it is the three-point
-//! (fishtail) turn, which needs less headland than the omega turn.
+//! (fishtail) turn, which needs less headland than the omega turn. Its
+//! [`ReedsSheppPath::sections`] between cusps are reference lines in the
+//! direction of travel; given a negative speed, the trackers back the machine
+//! along a section driven in reverse.
 //!
 //! # Coverage
 //!
@@ -132,7 +135,7 @@ pub use field::Field;
 pub use line::{AbLine, PivotLine, ReferenceLine, Station, MIN_LINE_METRES};
 pub use pass::{PassIndex, PassPattern, MAX_PASS};
 pub use plane::{FieldPlane, FIELD_RADIUS_METRES};
-pub use reverse::{Gear, GearedPiece, ReedsSheppPath, MAX_REVERSING_PIECES};
+pub use reverse::{Gear, GearedPiece, GearedSection, ReedsSheppPath, MAX_REVERSING_PIECES};
 pub use steering::{
     bicycle_step, PathTracker, PurePursuit, Stanley, SteeringCommand, VehicleGeometry, VehicleState,
 };

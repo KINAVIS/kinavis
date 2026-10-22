@@ -6,7 +6,7 @@ readme = "README.md"
 keywords = ["agriculture", "guidance", "ab-line", "precision-farming", "no-std"]
 categories = ["science::geo", "no-std::no-alloc", "algorithms"]
 # Satellite crate, versioned independently of the kernel.
-version = "0.1.1"
+version = "0.1.2"
 authors.workspace = true
 edition.workspace = true
 rust-version.workspace = true
