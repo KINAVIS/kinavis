@@ -23,7 +23,15 @@ use crate::tilt::LeverArm;
 ///
 /// The control point is the middle of the rear axle: the point that moves
 /// along the heading without side slip in the kinematic bicycle.
+///
+/// With the `serde` feature the wheel angle and steering rate are stored in
+/// radians, as held, so that a geometry reads back equal to itself.
 #[derive(Debug, Clone, Copy, PartialEq)]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde::Serialize, serde::Deserialize),
+    serde(try_from = "StoredGeometry", into = "StoredGeometry")
+)]
 pub struct VehicleGeometry {
     wheelbase: f64,
     max_angle: f64,
@@ -566,6 +574,56 @@ fn sinc(x: f64) -> f64 {
         1.0 - x * x / 6.0
     } else {
         math::sin(x) / x
+    }
+}
+
+/// Serialised form, in the units held.
+#[cfg(feature = "serde")]
+#[derive(Clone, Copy, serde::Serialize, serde::Deserialize)]
+struct StoredGeometry {
+    wheelbase_metres: f64,
+    max_wheel_angle_radians: f64,
+    max_steering_rate_radians_per_second: f64,
+    antenna: LeverArm,
+}
+
+#[cfg(feature = "serde")]
+impl TryFrom<StoredGeometry> for VehicleGeometry {
+    type Error = crate::error::AgriError;
+
+    /// The ranges of [`VehicleGeometry::new`].
+    fn try_from(stored: StoredGeometry) -> Result<Self> {
+        ensure_range("wheelbase, metres", stored.wheelbase_metres, 0.1, 30.0)?;
+        ensure_range(
+            "maximum wheel angle, radians",
+            stored.max_wheel_angle_radians,
+            math::to_radians(1.0),
+            math::to_radians(80.0),
+        )?;
+        ensure_range(
+            "maximum steering rate, rad/s",
+            stored.max_steering_rate_radians_per_second,
+            1e-6,
+            math::to_radians(360.0),
+        )?;
+        Ok(Self {
+            wheelbase: stored.wheelbase_metres,
+            max_angle: stored.max_wheel_angle_radians,
+            max_rate: stored.max_steering_rate_radians_per_second,
+            antenna: stored.antenna,
+        })
+    }
+}
+
+#[cfg(feature = "serde")]
+impl From<VehicleGeometry> for StoredGeometry {
+    fn from(geometry: VehicleGeometry) -> Self {
+        Self {
+            wheelbase_metres: geometry.wheelbase,
+            max_wheel_angle_radians: geometry.max_angle,
+            max_steering_rate_radians_per_second: geometry.max_rate,
+            antenna: geometry.antenna,
+        }
     }
 }
 

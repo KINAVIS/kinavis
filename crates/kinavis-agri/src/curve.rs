@@ -32,6 +32,11 @@ const MAX_TURN_DEGREES: f64 = 179.0;
 /// closer to another part of the line, so a pass never loops back.
 /// [`CurveLine::offset`] gives the same curve as a polyline.
 #[derive(Debug, Clone, Copy, PartialEq)]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde::Serialize, serde::Deserialize),
+    serde(try_from = "StoredCurve", into = "StoredCurve")
+)]
 pub struct CurveLine<const N: usize> {
     plane: FieldPlane,
     vertices: Inline<PlanarPoint, N>,
@@ -965,6 +970,34 @@ fn min_max(a: f64, b: f64) -> (f64, f64) {
         (a, b)
     } else {
         (b, a)
+    }
+}
+
+/// Serialised form: the vertices as a list.
+#[cfg(feature = "serde")]
+#[derive(serde::Serialize, serde::Deserialize)]
+struct StoredCurve {
+    plane: FieldPlane,
+    vertices: alloc::vec::Vec<PlanarPoint>,
+}
+
+#[cfg(feature = "serde")]
+impl<const N: usize> TryFrom<StoredCurve> for CurveLine<N> {
+    type Error = AgriError;
+
+    /// Deserialised through [`CurveLine::new`].
+    fn try_from(stored: StoredCurve) -> Result<Self> {
+        Self::new(stored.plane, &stored.vertices)
+    }
+}
+
+#[cfg(feature = "serde")]
+impl<const N: usize> From<CurveLine<N>> for StoredCurve {
+    fn from(curve: CurveLine<N>) -> Self {
+        Self {
+            plane: curve.plane,
+            vertices: curve.vertices().to_vec(),
+        }
     }
 }
 

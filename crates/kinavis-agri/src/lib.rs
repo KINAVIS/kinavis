@@ -100,11 +100,17 @@
 //!
 //! - `std` *(default)* — standard library maths.
 //! - `libm` — for `no_std` targets: `--no-default-features --features libm`.
+//! - `serde` — serialisation of fields, planes, guidance lines, pass
+//!   patterns, booms and machine geometry, for keeping a job between
+//!   sessions. Deserialisation goes through the constructors' checks.
+//!   Needs an allocator.
 //!
-//! No allocation; builds for bare-metal targets.
+//! Without `serde`, no allocation; builds for bare-metal targets.
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
+#[cfg(feature = "serde")]
+extern crate alloc;
 #[cfg(test)]
 extern crate std;
 

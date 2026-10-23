@@ -4,10 +4,14 @@
 use kinavis::region::PlanarPoint;
 use kinavis_grid::{ProjectedCrs, TmParameters};
 use kinavis_kernel::error::ensure_range;
+#[cfg(feature = "serde")]
+use kinavis_kernel::error::Excerpt;
 use kinavis_kernel::geodesy::{Datum, Ellipsoid, VerticalDatum};
 use kinavis_kernel::{
     math, Angle, Distance, GridCourse, Height, KernelError, Position, TrueCourse,
 };
+#[cfg(feature = "serde")]
+use kinavis_kernel::{Latitude, Longitude};
 
 use crate::error::{AgriError, Result};
 
@@ -43,7 +47,16 @@ const MAX_HEIGHT_METRES: f64 = 9_000.0;
 ///   scale error is the grid's: up to 10⁻³ at the edge of a UTM zone, that is
 ///   3.6 cm between two passes of a 36 m boom; [`FieldPlane::scale_at`] gives
 ///   it at a point.
+///
+/// With the `serde` feature a centred plane is stored as its origin and
+/// scale, a grid as its datum's name and its projection parameters. A grid on
+/// a datum other than the [`Datum`] presets does not serialise.
 #[derive(Debug, Clone, Copy, PartialEq)]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde::Deserialize),
+    serde(try_from = "StoredPlane")
+)]
 pub struct FieldPlane {
     crs: ProjectedCrs,
     centred: bool,
@@ -81,12 +94,16 @@ impl FieldPlane {
             89.0,
         )?;
         let radius = gaussian_radius(Datum::WGS84.ellipsoid(), origin.latitude().radians());
+        Self::centred(origin, (radius + h) / radius)
+    }
+
+    fn centred(origin: Position, scale: f64) -> Result<Self> {
         let crs = ProjectedCrs::new(
             Datum::WGS84,
             TmParameters {
                 central_meridian: origin.longitude(),
                 latitude_of_origin: origin.latitude(),
-                scale: (radius + h) / radius,
+                scale,
                 false_easting: Distance::ZERO,
                 false_northing: Distance::ZERO,
             },
@@ -208,6 +225,132 @@ impl FieldPlane {
             });
         }
         Ok(())
+    }
+}
+
+/// Datums a grid plane is stored on, by name.
+#[cfg(feature = "serde")]
+const STORED_DATUMS: [Datum; 12] = [
+    Datum::WGS84,
+    Datum::NAD83,
+    Datum::ED50,
+    Datum::NAD27,
+    Datum::OSGB36,
+    Datum::PULKOVO_1942,
+    Datum::PULKOVO_1995,
+    Datum::GSK_2011,
+    Datum::TOKYO,
+    Datum::DHDN,
+    Datum::AGD66,
+    Datum::SAD69,
+];
+
+/// Serialised form, in metres. A centred plane keeps its scale rather than
+/// its height, so that it reads back equal to itself.
+#[cfg(feature = "serde")]
+#[derive(serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+enum StoredPlane {
+    Centred {
+        origin: Position,
+        scale: f64,
+    },
+    Grid {
+        datum: alloc::string::String,
+        central_meridian: Longitude,
+        latitude_of_origin: Latitude,
+        scale: f64,
+        false_easting_metres: f64,
+        false_northing_metres: f64,
+    },
+}
+
+#[cfg(feature = "serde")]
+impl serde::Serialize for FieldPlane {
+    fn serialize<S: serde::Serializer>(
+        &self,
+        serializer: S,
+    ) -> core::result::Result<S::Ok, S::Error> {
+        let parameters = self.crs.projection().parameters();
+        let stored = if self.centred {
+            StoredPlane::Centred {
+                origin: Position::new(parameters.latitude_of_origin, parameters.central_meridian),
+                scale: parameters.scale,
+            }
+        } else {
+            let datum = self.crs.datum();
+            if !STORED_DATUMS.contains(datum) {
+                return Err(serde::ser::Error::custom(
+                    "a grid plane on a datum other than the presets",
+                ));
+            }
+            StoredPlane::Grid {
+                datum: datum.name().into(),
+                central_meridian: parameters.central_meridian,
+                latitude_of_origin: parameters.latitude_of_origin,
+                scale: parameters.scale,
+                false_easting_metres: parameters.false_easting.metres(),
+                false_northing_metres: parameters.false_northing.metres(),
+            }
+        };
+        stored.serialize(serializer)
+    }
+}
+
+#[cfg(feature = "serde")]
+impl TryFrom<StoredPlane> for FieldPlane {
+    type Error = AgriError;
+
+    /// A centred plane is checked as [`FieldPlane::centred_at`] checks it,
+    /// for the height its scale stands for.
+    fn try_from(stored: StoredPlane) -> Result<Self> {
+        match stored {
+            StoredPlane::Centred { origin, scale } => {
+                ensure_range(
+                    "latitude of a field plane's origin",
+                    origin.latitude().degrees(),
+                    -89.0,
+                    89.0,
+                )?;
+                let radius = gaussian_radius(Datum::WGS84.ellipsoid(), origin.latitude().radians());
+                // A scale computed from a height reads back as that height to
+                // a nanometre.
+                ensure_range(
+                    "field height above the ellipsoid, metres",
+                    (scale - 1.0) * radius,
+                    MIN_HEIGHT_METRES - 1e-6,
+                    MAX_HEIGHT_METRES + 1e-6,
+                )?;
+                Self::centred(origin, scale)
+            }
+            StoredPlane::Grid {
+                datum,
+                central_meridian,
+                latitude_of_origin,
+                scale,
+                false_easting_metres,
+                false_northing_metres,
+            } => {
+                let datum = STORED_DATUMS
+                    .into_iter()
+                    .find(|preset| preset.name() == datum)
+                    .ok_or_else(|| KernelError::Parse {
+                        what: "datum of a grid plane, by preset name",
+                        input: Excerpt::new(&datum),
+                    })?;
+                let crs = ProjectedCrs::new(
+                    datum,
+                    TmParameters {
+                        central_meridian,
+                        latitude_of_origin,
+                        scale,
+                        false_easting: Distance::from_metres(false_easting_metres)?,
+                        false_northing: Distance::from_metres(false_northing_metres)?,
+                    },
+                )?;
+                Ok(Self::grid(crs))
+            }
+        }
     }
 }
 

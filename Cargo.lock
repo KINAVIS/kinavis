@@ -51,12 +51,14 @@ dependencies = [
 
 [[package]]
 name = "kinavis-agri"
-version = "0.1.3"
+version = "0.1.4"
 dependencies = [
  "kinavis",
  "kinavis-grid",
  "kinavis-kernel",
  "proptest",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

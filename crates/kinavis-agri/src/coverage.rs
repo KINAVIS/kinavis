@@ -22,6 +22,11 @@ use crate::turn::Pose;
 
 /// Boom of `S` sections, left to right, behind the control point.
 #[derive(Debug, Clone, Copy, PartialEq)]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde::Serialize, serde::Deserialize),
+    serde(try_from = "StoredBoom", into = "StoredBoom")
+)]
 pub struct Boom<const S: usize> {
     /// Section widths, metres, left to right.
     widths: [f64; S],
@@ -49,21 +54,19 @@ impl<const S: usize> Boom<S> {
             }
             .into());
         }
-        let mut metres = [0.0; S];
-        for (slot, width) in metres.iter_mut().zip(widths) {
-            ensure_range("section width, metres", width.metres(), 0.01, 100.0)?;
-            *slot = width.metres();
+        Self::checked(widths.map(Distance::metres), behind.metres(), 0.0)
+    }
+
+    fn checked(widths: [f64; S], behind: f64, right: f64) -> Result<Self> {
+        for width in widths {
+            ensure_range("section width, metres", width, 0.01, 100.0)?;
         }
-        ensure_range(
-            "boom distance behind, metres",
-            behind.metres(),
-            -100.0,
-            100.0,
-        )?;
+        ensure_range("boom distance behind, metres", behind, -100.0, 100.0)?;
+        ensure_range("boom offset, metres", right, -100.0, 100.0)?;
         Ok(Self {
-            widths: metres,
-            behind: behind.metres(),
-            right: 0.0,
+            widths,
+            behind,
+            right,
         })
     }
 
@@ -73,11 +76,7 @@ impl<const S: usize> Boom<S> {
     ///
     /// [`KernelError::OutOfRange`] beyond ±100 m.
     pub fn offset_right(self, right: Distance) -> Result<Self> {
-        ensure_range("boom offset, metres", right.metres(), -100.0, 100.0)?;
-        Ok(Self {
-            right: right.metres(),
-            ..self
-        })
+        Self::checked(self.widths, self.behind, right.metres())
     }
 
     /// Working width.
@@ -457,5 +456,59 @@ impl SectionControl {
             };
         }
         Ok(commands)
+    }
+}
+
+/// Serialised form, in metres: the section widths as a list.
+#[cfg(feature = "serde")]
+#[derive(serde::Serialize, serde::Deserialize)]
+// The unit suffix is part of the wire format.
+#[allow(clippy::struct_field_names)]
+struct StoredBoom {
+    widths_metres: alloc::vec::Vec<f64>,
+    behind_metres: f64,
+    right_metres: f64,
+}
+
+#[cfg(feature = "serde")]
+impl<const S: usize> TryFrom<StoredBoom> for Boom<S> {
+    type Error = crate::error::AgriError;
+
+    /// Exactly `S` widths, checked as [`Boom::new`] and [`Boom::offset_right`]
+    /// check.
+    fn try_from(stored: StoredBoom) -> Result<Self> {
+        let found = stored.widths_metres.len();
+        if found < S {
+            return Err(KernelError::InsufficientData {
+                found,
+                required: S,
+                context: "the sections of a boom",
+            }
+            .into());
+        }
+        if found > S {
+            return Err(KernelError::CapacityExceeded {
+                context: "the sections of a boom",
+                needed: found,
+                capacity: S,
+            }
+            .into());
+        }
+        let mut widths = [0.0; S];
+        for (slot, width) in widths.iter_mut().zip(stored.widths_metres) {
+            *slot = width;
+        }
+        Self::checked(widths, stored.behind_metres, stored.right_metres)
+    }
+}
+
+#[cfg(feature = "serde")]
+impl<const S: usize> From<Boom<S>> for StoredBoom {
+    fn from(boom: Boom<S>) -> Self {
+        Self {
+            widths_metres: boom.widths.to_vec(),
+            behind_metres: boom.behind,
+            right_metres: boom.right,
+        }
     }
 }

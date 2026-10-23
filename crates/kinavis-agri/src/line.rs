@@ -42,6 +42,11 @@ pub trait ReferenceLine {
 
 /// Straight line through A in a fixed direction, extended both ways.
 #[derive(Debug, Clone, Copy, PartialEq)]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde::Serialize, serde::Deserialize),
+    serde(try_from = "StoredAbLine", into = "StoredAbLine")
+)]
 pub struct AbLine {
     plane: FieldPlane,
     origin: PlanarPoint,
@@ -147,6 +152,11 @@ impl ReferenceLine for AbLine {
 /// reference direction is clockwise, so the left side is outward and pass +1
 /// lies outside the reference circle.
 #[derive(Debug, Clone, Copy, PartialEq)]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde::Serialize, serde::Deserialize),
+    serde(try_from = "StoredPivotLine", into = "StoredPivotLine")
+)]
 pub struct PivotLine {
     plane: FieldPlane,
     centre: PlanarPoint,
@@ -161,10 +171,13 @@ impl PivotLine {
     /// [`kinavis_kernel::KernelError::OutOfRange`] for a radius below
     /// [`MIN_LINE_METRES`] or beyond 100 km.
     pub fn new(plane: FieldPlane, centre: PlanarPoint, radius: Distance) -> Result<Self> {
-        let radius = radius.metres();
+        Self::with_radius(&plane, centre, radius.metres())
+    }
+
+    fn with_radius(plane: &FieldPlane, centre: PlanarPoint, radius: f64) -> Result<Self> {
         ensure_range("pivot radius, metres", radius, MIN_LINE_METRES, 1e5)?;
         Ok(Self {
-            plane,
+            plane: *plane,
             centre,
             radius,
         })
@@ -233,6 +246,79 @@ pub(crate) fn course_of(east: f64, north: f64) -> GridCourse {
 /// geometry, maps to zero.
 pub(crate) fn metres(value: f64) -> Distance {
     Distance::from_metres(value).unwrap_or(Distance::ZERO)
+}
+
+/// Serialised form: A and the unit direction towards B.
+#[cfg(feature = "serde")]
+#[derive(Clone, Copy, serde::Serialize, serde::Deserialize)]
+struct StoredAbLine {
+    plane: FieldPlane,
+    origin: PlanarPoint,
+    /// East and north components.
+    direction: [f64; 2],
+}
+
+#[cfg(feature = "serde")]
+impl TryFrom<StoredAbLine> for AbLine {
+    type Error = crate::error::AgriError;
+
+    /// The direction must be a unit vector to a billionth.
+    fn try_from(stored: StoredAbLine) -> Result<Self> {
+        let [east, north] = stored.direction;
+        ensure_range(
+            "length of an AB line's direction",
+            math::hypot(east, north),
+            1.0 - 1e-9,
+            1.0 + 1e-9,
+        )?;
+        Ok(Self {
+            plane: stored.plane,
+            origin: stored.origin,
+            east,
+            north,
+        })
+    }
+}
+
+#[cfg(feature = "serde")]
+impl From<AbLine> for StoredAbLine {
+    fn from(line: AbLine) -> Self {
+        Self {
+            plane: line.plane,
+            origin: line.origin,
+            direction: [line.east, line.north],
+        }
+    }
+}
+
+/// Serialised form, in metres.
+#[cfg(feature = "serde")]
+#[derive(Clone, Copy, serde::Serialize, serde::Deserialize)]
+struct StoredPivotLine {
+    plane: FieldPlane,
+    centre: PlanarPoint,
+    radius_metres: f64,
+}
+
+#[cfg(feature = "serde")]
+impl TryFrom<StoredPivotLine> for PivotLine {
+    type Error = crate::error::AgriError;
+
+    /// Checked as [`PivotLine::new`] checks.
+    fn try_from(stored: StoredPivotLine) -> Result<Self> {
+        Self::with_radius(&stored.plane, stored.centre, stored.radius_metres)
+    }
+}
+
+#[cfg(feature = "serde")]
+impl From<PivotLine> for StoredPivotLine {
+    fn from(line: PivotLine) -> Self {
+        Self {
+            plane: line.plane,
+            centre: line.centre,
+            radius_metres: line.radius,
+        }
+    }
 }
 
 #[cfg(test)]
