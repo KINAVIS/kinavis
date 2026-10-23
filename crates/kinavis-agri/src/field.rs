@@ -10,6 +10,7 @@ use crate::plane::FieldPlane;
 /// Field: a boundary of at most `N` vertices and up to `K` obstacles of at
 /// most `H` vertices each, in the plane it was laid out in.
 #[derive(Debug, Clone, Copy, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Field<const N: usize, const H: usize, const K: usize> {
     plane: FieldPlane,
     region: Region<N, H, K>,

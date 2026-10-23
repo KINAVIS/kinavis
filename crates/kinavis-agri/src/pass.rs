@@ -14,6 +14,11 @@ pub const MAX_PASS: i32 = 1_000_000;
 /// left, negative to its right (looking along the line's reference
 /// direction).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde::Serialize, serde::Deserialize),
+    serde(from = "i32", into = "i32")
+)]
 pub struct PassIndex(i32);
 
 impl PassIndex {
@@ -70,6 +75,11 @@ impl fmt::Display for PassIndex {
 /// place the pattern, or nudged during work to take out GNSS drift since the
 /// line was recorded.
 #[derive(Debug, Clone, Copy, PartialEq)]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde::Serialize, serde::Deserialize),
+    serde(try_from = "StoredPattern", into = "StoredPattern")
+)]
 pub struct PassPattern {
     spacing: f64,
     shift: f64,
@@ -104,7 +114,10 @@ impl PassPattern {
     ///
     /// [`kinavis_kernel::KernelError::OutOfRange`] for a shift beyond 10⁶ m.
     pub fn with_shift(self, shift: Distance) -> Result<Self> {
-        let shift = shift.metres();
+        self.shifted(shift.metres())
+    }
+
+    fn shifted(self, shift: f64) -> Result<Self> {
         ensure_finite("pass shift", shift)?;
         ensure_range("pass shift, metres", shift, -MAX_SHIFT, MAX_SHIFT)?;
         Ok(Self { shift, ..self })
@@ -180,6 +193,55 @@ impl FloorToward for f64 {
             truncated - 1.0
         } else {
             truncated
+        }
+    }
+}
+
+impl From<i32> for PassIndex {
+    /// As [`PassIndex::new`]: clamped to ±[`MAX_PASS`].
+    fn from(number: i32) -> Self {
+        Self::new(number)
+    }
+}
+
+impl From<PassIndex> for i32 {
+    fn from(pass: PassIndex) -> Self {
+        pass.0
+    }
+}
+
+/// Serialised form, in metres: the spacing, not the width and overlap it
+/// came from.
+#[cfg(feature = "serde")]
+#[derive(Clone, Copy, serde::Serialize, serde::Deserialize)]
+struct StoredPattern {
+    spacing_metres: f64,
+    shift_metres: f64,
+}
+
+#[cfg(feature = "serde")]
+impl TryFrom<StoredPattern> for PassPattern {
+    type Error = crate::error::AgriError;
+
+    /// The spacing within the widths [`PassPattern::new`] accepts, the shift
+    /// as [`PassPattern::with_shift`] checks it.
+    fn try_from(stored: StoredPattern) -> Result<Self> {
+        let spacing = stored.spacing_metres;
+        ensure_range("pass spacing, metres", spacing, MIN_SPACING, MAX_SPACING)?;
+        Self {
+            spacing,
+            shift: 0.0,
+        }
+        .shifted(stored.shift_metres)
+    }
+}
+
+#[cfg(feature = "serde")]
+impl From<PassPattern> for StoredPattern {
+    fn from(pattern: PassPattern) -> Self {
+        Self {
+            spacing_metres: pattern.spacing,
+            shift_metres: pattern.shift,
         }
     }
 }

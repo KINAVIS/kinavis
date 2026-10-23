@@ -101,6 +101,11 @@ pub fn locate<L: ReferenceLine>(
 
 /// Thresholds of a [`PassTracker`].
 #[derive(Debug, Clone, Copy, PartialEq)]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde::Serialize, serde::Deserialize),
+    serde(try_from = "StoredConfig", into = "StoredConfig")
+)]
 pub struct TrackerConfig {
     off_line_limit: f64,
     end_warning: f64,
@@ -127,18 +132,21 @@ impl TrackerConfig {
         end_warning: Distance,
         hysteresis: Distance,
     ) -> Result<Self> {
-        ensure_range("off-line limit, metres", off_line_limit.metres(), 1e-3, 1e4)?;
-        ensure_range(
-            "end-of-pass warning, metres",
+        Self::checked(
+            off_line_limit.metres(),
             end_warning.metres(),
-            1e-3,
-            1e5,
-        )?;
-        ensure_range("hysteresis, metres", hysteresis.metres(), 0.0, 1e3)?;
+            hysteresis.metres(),
+        )
+    }
+
+    fn checked(off_line_limit: f64, end_warning: f64, hysteresis: f64) -> Result<Self> {
+        ensure_range("off-line limit, metres", off_line_limit, 1e-3, 1e4)?;
+        ensure_range("end-of-pass warning, metres", end_warning, 1e-3, 1e5)?;
+        ensure_range("hysteresis, metres", hysteresis, 0.0, 1e3)?;
         Ok(Self {
-            off_line_limit: off_line_limit.metres(),
-            end_warning: end_warning.metres(),
-            hysteresis: hysteresis.metres(),
+            off_line_limit,
+            end_warning,
+            hysteresis,
         })
     }
 
@@ -349,5 +357,39 @@ pub(crate) fn locate_pass<L: ReferenceLine>(
         course,
         reversed,
         to_end: None,
+    }
+}
+
+/// Serialised form, in metres.
+#[cfg(feature = "serde")]
+#[derive(Clone, Copy, serde::Serialize, serde::Deserialize)]
+struct StoredConfig {
+    off_line_limit_metres: f64,
+    end_warning_metres: f64,
+    hysteresis_metres: f64,
+}
+
+#[cfg(feature = "serde")]
+impl TryFrom<StoredConfig> for TrackerConfig {
+    type Error = crate::error::AgriError;
+
+    /// Checked as [`TrackerConfig::new`] checks.
+    fn try_from(stored: StoredConfig) -> Result<Self> {
+        Self::checked(
+            stored.off_line_limit_metres,
+            stored.end_warning_metres,
+            stored.hysteresis_metres,
+        )
+    }
+}
+
+#[cfg(feature = "serde")]
+impl From<TrackerConfig> for StoredConfig {
+    fn from(config: TrackerConfig) -> Self {
+        Self {
+            off_line_limit_metres: config.off_line_limit,
+            end_warning_metres: config.end_warning,
+            hysteresis_metres: config.hysteresis,
+        }
     }
 }

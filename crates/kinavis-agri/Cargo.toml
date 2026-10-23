@@ -6,7 +6,7 @@ readme = "README.md"
 keywords = ["agriculture", "guidance", "ab-line", "precision-farming", "no-std"]
 categories = ["science::geo", "no-std::no-alloc", "algorithms"]
 # Satellite crate, versioned independently of the kernel.
-version = "0.1.3"
+version = "0.1.4"
 authors.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -22,15 +22,21 @@ default = ["std"]
 std = ["kinavis-kernel/std", "kinavis/std", "kinavis-grid/std"]
 # Pure-Rust `libm`, for `no_std` targets.
 libm = ["kinavis-kernel/libm", "kinavis/libm", "kinavis-grid/libm"]
+# Serialisation of fields, guidance lines and machine settings;
+# deserialisation applies construction-time validation. Needs an allocator
+# (curves and booms serialise as lists).
+serde = ["dep:serde", "kinavis/serde", "kinavis-kernel/serde"]
 
 [dependencies]
 kinavis-kernel = { workspace = true }
 # Planar regions (`kinavis::region`), first released in 1.2.
 kinavis = { version = "1.2.0", path = "../kinavis", default-features = false }
 kinavis-grid = { version = "0.1.0", path = "../kinavis-grid", default-features = false }
+serde = { workspace = true, optional = true }
 
 [dev-dependencies]
 proptest = { workspace = true }
+serde_json = { workspace = true }
 
 [lints]
 workspace = true

@@ -14,7 +14,14 @@ use crate::error::Result;
 
 /// Antenna position relative to the control point (the point the machine
 /// steers by, usually on the ground under the rear axle), in body axes.
+///
+/// With the `serde` feature it is stored in metres.
 #[derive(Debug, Clone, Copy, PartialEq)]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde::Serialize, serde::Deserialize),
+    serde(try_from = "StoredLeverArm", into = "StoredLeverArm")
+)]
 pub struct LeverArm {
     /// Ahead of the control point.
     pub forward: Distance,
@@ -32,6 +39,39 @@ impl LeverArm {
             forward: Distance::ZERO,
             right: Distance::ZERO,
             up: height,
+        }
+    }
+}
+
+/// Serialised form, in metres.
+#[cfg(feature = "serde")]
+#[derive(Clone, Copy, serde::Serialize, serde::Deserialize)]
+struct StoredLeverArm {
+    forward_metres: f64,
+    right_metres: f64,
+    up_metres: f64,
+}
+
+#[cfg(feature = "serde")]
+impl TryFrom<StoredLeverArm> for LeverArm {
+    type Error = crate::error::AgriError;
+
+    fn try_from(stored: StoredLeverArm) -> Result<Self> {
+        Ok(Self {
+            forward: Distance::from_metres(stored.forward_metres)?,
+            right: Distance::from_metres(stored.right_metres)?,
+            up: Distance::from_metres(stored.up_metres)?,
+        })
+    }
+}
+
+#[cfg(feature = "serde")]
+impl From<LeverArm> for StoredLeverArm {
+    fn from(arm: LeverArm) -> Self {
+        Self {
+            forward_metres: arm.forward.metres(),
+            right_metres: arm.right.metres(),
+            up_metres: arm.up.metres(),
         }
     }
 }

@@ -42,7 +42,7 @@ jobs:
       - run: cargo test -p kinavis-mavlink --no-default-features --features "libm signing"
       - run: cargo test -p kinavis-ros2 --no-default-features --features libm
       - run: cargo test -p kinavis-kernel -p kinavis --no-default-features --features "libm alloc"
-      - run: cargo test -p kinavis-kernel -p kinavis --no-default-features --features "libm serde"
+      - run: cargo test -p kinavis-kernel -p kinavis -p kinavis-agri --no-default-features --features "libm serde"
       # Magnetic model on `libm`, and without embedded coefficients (synthesis
       # only; the doctest needing them is excluded).
       - run: cargo test -p kinavis-wmm --no-default-features --features "libm wmm2025"
@@ -84,7 +84,7 @@ jobs:
       - run: cargo clippy --workspace --all-targets --all-features
       - run: cargo clippy -p kinavis-kernel -p kinavis -p kinavis-nmea0183 -p kinavis-wmm -p kinavis-geoid -p kinavis-grid -p kinavis-ubx -p kinavis-integrity -p kinavis-agri -p kinavis-j1939 -p kinavis-isobus -p kinavis-mavlink -p kinavis-ros2 -p kinavis-traffic -p kinavis-colregs -p kinavis-alerts -p kinavis-ais -p kinavis-nmea2000 -p kinavis-ins --all-targets --no-default-features --features libm
       - run: cargo clippy -p kinavis-kernel -p kinavis --all-targets --no-default-features --features "libm alloc"
-      - run: cargo clippy -p kinavis-kernel -p kinavis --all-targets --no-default-features --features "libm serde"
+      - run: cargo clippy -p kinavis-kernel -p kinavis -p kinavis-agri --all-targets --no-default-features --features "libm serde"
       - run: cargo doc --workspace --no-deps --all-features
 
   real-data:
@@ -157,7 +157,7 @@ jobs:
       - run: cargo build -p kinavis-mavlink --target thumbv7em-none-eabihf --no-default-features --features "libm signing"
       - run: cargo build -p kinavis-ros2 --target thumbv7em-none-eabihf --no-default-features --features libm
       - run: cargo build -p kinavis-kernel -p kinavis --target thumbv7em-none-eabihf --no-default-features --features "libm alloc"
-      - run: cargo build -p kinavis-kernel -p kinavis --target thumbv7em-none-eabihf --no-default-features --features "libm serde"
+      - run: cargo build -p kinavis-kernel -p kinavis -p kinavis-agri --target thumbv7em-none-eabihf --no-default-features --features "libm serde"
 
   strict-profile:
     name: No panic path on bare metal
@@ -211,6 +211,8 @@ jobs:
             target: serde_table
           - crate: kinavis
             target: serde_region
+          - crate: kinavis-agri
+            target: serde_guidance
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # v1

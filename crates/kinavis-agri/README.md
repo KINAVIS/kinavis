@@ -70,13 +70,31 @@ never longer than Dubins, the machine moving the way each piece's gear says,
 a fishtail driven through its cusps; the bicycle model against fine integration and finite
 differences, and the estimator through a headland turn with six seconds
 without fixes and with a late receiver; the same results with `std` and
-`libm`. `no_std`, no
-allocation.
+`libm`; stored jobs read back equal to themselves, and what the
+constructors refuse is refused on reading, fuzzed. `no_std`, no
+allocation without `serde`.
+
+## Keeping a job
+
+With the `serde` feature a field, its guidance lines, the pass pattern, the
+boom, the machine's geometry and the tracker's thresholds serialise, so a job
+outlasts the session. Lengths are in metres, planar points `[east, north]`;
+a centred plane is its origin and scale:
+
+```json
+{"centred":{"origin":{"latitude":51.985,"longitude":5.66},"scale":1.0000015}}
+```
+
+Reading goes through the constructors' checks: a curve that crosses itself
+or a boom with the wrong number of sections is an error, not a value. A grid
+plane is stored by its datum's name and reads only on one of the `Datum`
+presets.
 
 ## Feature flags
 
 - `std` *(default)* — standard library maths.
 - `libm` — for `no_std` targets: `--no-default-features --features libm`.
+- `serde` — serialisation, as above. Needs an allocator.
 
 ## License
 
