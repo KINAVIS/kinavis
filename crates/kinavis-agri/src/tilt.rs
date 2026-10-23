@@ -46,6 +46,8 @@ impl LeverArm {
 /// Serialised form, in metres.
 #[cfg(feature = "serde")]
 #[derive(Clone, Copy, serde::Serialize, serde::Deserialize)]
+// The unit suffix is part of the wire format.
+#[allow(clippy::struct_field_names)]
 struct StoredLeverArm {
     forward_metres: f64,
     right_metres: f64,

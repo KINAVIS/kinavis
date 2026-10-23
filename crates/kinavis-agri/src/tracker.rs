@@ -363,6 +363,8 @@ pub(crate) fn locate_pass<L: ReferenceLine>(
 /// Serialised form, in metres.
 #[cfg(feature = "serde")]
 #[derive(Clone, Copy, serde::Serialize, serde::Deserialize)]
+// The unit suffix is part of the wire format.
+#[allow(clippy::struct_field_names)]
 struct StoredConfig {
     off_line_limit_metres: f64,
     end_warning_metres: f64,

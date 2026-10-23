@@ -54,7 +54,7 @@ impl<const S: usize> Boom<S> {
             }
             .into());
         }
-        Self::checked(widths.map(|width| width.metres()), behind.metres(), 0.0)
+        Self::checked(widths.map(Distance::metres), behind.metres(), 0.0)
     }
 
     fn checked(widths: [f64; S], behind: f64, right: f64) -> Result<Self> {
@@ -462,6 +462,8 @@ impl SectionControl {
 /// Serialised form, in metres: the section widths as a list.
 #[cfg(feature = "serde")]
 #[derive(serde::Serialize, serde::Deserialize)]
+// The unit suffix is part of the wire format.
+#[allow(clippy::struct_field_names)]
 struct StoredBoom {
     widths_metres: alloc::vec::Vec<f64>,
     behind_metres: f64,

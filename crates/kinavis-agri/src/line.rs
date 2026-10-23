@@ -171,13 +171,13 @@ impl PivotLine {
     /// [`kinavis_kernel::KernelError::OutOfRange`] for a radius below
     /// [`MIN_LINE_METRES`] or beyond 100 km.
     pub fn new(plane: FieldPlane, centre: PlanarPoint, radius: Distance) -> Result<Self> {
-        Self::with_radius(plane, centre, radius.metres())
+        Self::with_radius(&plane, centre, radius.metres())
     }
 
-    fn with_radius(plane: FieldPlane, centre: PlanarPoint, radius: f64) -> Result<Self> {
+    fn with_radius(plane: &FieldPlane, centre: PlanarPoint, radius: f64) -> Result<Self> {
         ensure_range("pivot radius, metres", radius, MIN_LINE_METRES, 1e5)?;
         Ok(Self {
-            plane,
+            plane: *plane,
             centre,
             radius,
         })
@@ -306,7 +306,7 @@ impl TryFrom<StoredPivotLine> for PivotLine {
 
     /// Checked as [`PivotLine::new`] checks.
     fn try_from(stored: StoredPivotLine) -> Result<Self> {
-        Self::with_radius(stored.plane, stored.centre, stored.radius_metres)
+        Self::with_radius(&stored.plane, stored.centre, stored.radius_metres)
     }
 }
 
