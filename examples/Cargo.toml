@@ -23,7 +23,7 @@ kinavis-ubx = { version = "0.1.0", path = "../crates/kinavis-ubx" }
 kinavis-integrity = { version = "0.1.0", path = "../crates/kinavis-integrity" }
 kinavis-grid = { version = "0.1.0", path = "../crates/kinavis-grid" }
 kinavis-geoid = { version = "0.1.0", path = "../crates/kinavis-geoid" }
-kinavis-agri = { version = "0.1.2", path = "../crates/kinavis-agri" }
+kinavis-agri = { version = "0.1.3", path = "../crates/kinavis-agri" }
 
 [lints]
 workspace = true

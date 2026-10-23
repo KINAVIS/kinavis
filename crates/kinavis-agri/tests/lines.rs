@@ -2,7 +2,16 @@
 //! numbers at the boundaries between passes, parallel curves against the
 //! exact offset and there and back, the tracker's hysteresis and events.
 
-#![allow(clippy::expect_used, clippy::panic, clippy::float_cmp)]
+#![allow(
+    clippy::expect_used,
+    clippy::panic,
+    clippy::float_cmp,
+    clippy::cast_precision_loss,
+    clippy::cast_possible_truncation,
+    clippy::cast_possible_wrap,
+    clippy::cast_sign_loss,
+    clippy::indexing_slicing
+)]
 
 use kinavis::error::NavigationError;
 use kinavis::region::{PlanarPoint, Polygon, Region};
@@ -128,9 +137,26 @@ proptest! {
                 }
             }
             Err(AgriError::Navigation(NavigationError::OffsetCollapses { .. })) => {}
+            // In pieces only round a bend of more than half a turn.
+            Err(AgriError::PassSplits { .. }) => {
+                prop_assert!(widest_bend(&turns) > 180.0, "{turns:?}");
+            }
             Err(other) => prop_assert!(false, "{other}"),
         }
     }
+}
+
+/// Largest turning of any stretch of the curve, degrees.
+fn widest_bend(turns: &[f64]) -> f64 {
+    let mut widest: f64 = 0.0;
+    for first in 0..turns.len() {
+        let mut sum = 0.0;
+        for turn in &turns[first..] {
+            sum += turn;
+            widest = widest.max(sum.abs());
+        }
+    }
+    widest
 }
 
 /// Curve from a start bearing, a turn at each vertex (clockwise positive)
@@ -275,4 +301,144 @@ fn an_offset_that_does_not_fit_says_so() {
             KernelError::CapacityExceeded { .. }
         )))
     ));
+}
+
+/// Whether the ground deeper than `d` from the curve (beyond the pass, on its
+/// side) has a part enclosed by the pass deeper than the grid's half-metre
+/// cell: a pocket. Flood fill on a
+/// half-metre grid round the curve; independent of `CurveLine::offset`.
+fn has_pocket(curve: &CurveLine<16>, d: f64) -> bool {
+    let (mut lo_x, mut hi_x, mut lo_y, mut hi_y) = (f64::MAX, f64::MIN, f64::MAX, f64::MIN);
+    for v in curve.vertices() {
+        lo_x = lo_x.min(v.east_metres());
+        hi_x = hi_x.max(v.east_metres());
+        lo_y = lo_y.min(v.north_metres());
+        hi_y = hi_y.max(v.north_metres());
+    }
+    let (margin, cell) = (d.abs() + 10.0, 0.5);
+    let (x0, y0) = (lo_x - margin, lo_y - margin);
+    let cols = ((hi_x - lo_x + 2.0 * margin) / cell) as usize;
+    let rows = ((hi_y - lo_y + 2.0 * margin) / cell) as usize;
+    // Depth beyond the pass, on its side.
+    let depth: Vec<f64> = (0..cols * rows)
+        .map(|k| {
+            let p = point(x0 + (k % cols) as f64 * cell, y0 + (k / cols) as f64 * cell);
+            curve.station(p).offset.metres() * d.signum() - d.abs()
+        })
+        .collect();
+    let deep: Vec<bool> = depth.iter().map(|&x| x > 0.0).collect();
+    let mut seen = vec![false; cols * rows];
+    for start in 0..cols * rows {
+        if !deep[start] || seen[start] {
+            continue;
+        }
+        let (mut stack, mut border, mut deepest) = (vec![start], false, 0.0f64);
+        seen[start] = true;
+        while let Some(k) = stack.pop() {
+            deepest = deepest.max(depth[k]);
+            let (col, row) = (k % cols, k / cols);
+            border |= col == 0 || row == 0 || col + 1 == cols || row + 1 == rows;
+            // Eight neighbours: a thin wedge running diagonally stays whole.
+            let around = (-1i64..=1).flat_map(|dy| (-1i64..=1).map(move |dx| (dx, dy)));
+            let around = around.filter_map(|(dx, dy)| {
+                let (nx, ny) = (col as i64 + dx, row as i64 + dy);
+                let inside = nx >= 0 && ny >= 0 && (nx as usize) < cols && (ny as usize) < rows;
+                inside.then(|| ny as usize * cols + nx as usize)
+            });
+            for n in around {
+                if deep[n] && !seen[n] {
+                    seen[n] = true;
+                    stack.push(n);
+                }
+            }
+        }
+        // Deeper than a cell: what the grid can tell.
+        if !border && deepest > cell {
+            return true;
+        }
+    }
+    false
+}
+
+#[test]
+fn a_curve_whose_run_ons_meet_has_no_single_pass() {
+    // A bend of 235° to the right: the run-ons cross, so the line crosses
+    // itself and its passes part where the nearest side changes.
+    let turns = [41.58, 33.25, 31.33, 18.27, 26.25, 42.26, 41.95];
+    let lengths = [27.87, 28.75, 3.64, 9.88, 21.29, 19.01, 25.58, 9.22];
+    let curve =
+        CurveLine::<16>::new(plane(), &walk_points(0.0, &turns, &lengths)).expect("a curve");
+    for d in [-22.469, -5.0, 5.0, 30.0] {
+        assert!(
+            matches!(
+                curve.offset::<1024>(metres(d), metres(0.01)),
+                Err(AgriError::PassSplits { .. })
+            ),
+            "{d}"
+        );
+    }
+    // Within the bound the pass is the curve itself.
+    let itself: CurveLine<16> = curve.offset(metres(0.01), metres(0.01)).expect("the curve");
+    assert_eq!(itself.vertices(), curve.vertices());
+}
+
+#[test]
+fn a_pocket_inside_a_bend_of_more_than_half_a_turn_is_reported() {
+    // Found by the property test: the run-ons stay apart, and inside the
+    // bend of 200° the pass closes on itself apart from the piece that runs
+    // on to both ends.
+    let turns = [
+        41.334, 38.556, 12.406, 24.677, -22.289, 20.713, 40.747, 45.315, 2.787, -45.897,
+    ];
+    let lengths = [
+        25.359, 4.567, 2.306, 3.130, 24.811, 9.124, 17.797, 26.846, 13.152, 26.375, 20.585,
+    ];
+    let curve =
+        CurveLine::<16>::new(plane(), &walk_points(182.142, &turns, &lengths)).expect("a curve");
+    let d = -26.307;
+    assert!(has_pocket(&curve, d));
+    assert!(matches!(
+        curve.offset::<1024>(metres(d), metres(0.01)),
+        Err(AgriError::PassSplits { .. })
+    ));
+    // Nearer the curve the pocket opens out: one pass.
+    assert!(!has_pocket(&curve, -5.0));
+    assert!(curve.offset::<1024>(metres(-5.0), metres(0.01)).is_ok());
+}
+
+#[test]
+fn an_arc_up_to_half_a_turn_offsets_to_its_concentric_arcs() {
+    // 150° of a 50 m circle, anticlockwise: inside is left.
+    let points: Vec<PlanarPoint> = (0..=15)
+        .map(|k| {
+            let a = (10.0 * f64::from(k)).to_radians();
+            point(50.0 * a.cos(), 50.0 * a.sin())
+        })
+        .collect();
+    let curve = CurveLine::<16>::new(plane(), &points).expect("an arc");
+    let tolerance = 0.01;
+    for d in [-40.0, -5.0, 5.0, 20.0, 45.0] {
+        let parallel: CurveLine<1024> = curve.offset(metres(d), metres(tolerance)).expect("a pass");
+        // Between the run-ons, on the polygon's own parallel: the chord's
+        // distance from the centre, 50·cos 5°, less d.
+        let inner = 50.0 * 5f64.to_radians().cos() - d;
+        for v in parallel.vertices() {
+            let r = v.east_metres().hypot(v.north_metres());
+            let angle = v.north_metres().atan2(v.east_metres()).to_degrees();
+            if (5.0..145.0).contains(&angle) && d > 0.0 {
+                assert!(r >= inner - 1e-6 && r <= 50.0 - d + 1e-6, "{d}: {r}");
+            }
+            let error = (curve.station(*v).offset.metres() - d).abs();
+            assert!(
+                error <= 2.0 * tolerance + 1e-6 * (1.0 + d.abs()),
+                "{d}: {error}"
+            );
+        }
+    }
+    // Beyond the radius only the run-ons' parallels are left, meeting at a
+    // corner on the bisector.
+    let corner: CurveLine<1024> = curve
+        .offset(metres(60.0), metres(tolerance))
+        .expect("a pass");
+    assert_eq!(corner.vertices().len(), 3);
 }
