@@ -24,6 +24,9 @@ kinavis-integrity = { version = "0.1.0", path = "../crates/kinavis-integrity" }
 kinavis-grid = { version = "0.1.0", path = "../crates/kinavis-grid" }
 kinavis-geoid = { version = "0.1.0", path = "../crates/kinavis-geoid" }
 kinavis-agri = { version = "0.1.4", path = "../crates/kinavis-agri" }
+kinavis-land = { version = "0.1.3", path = "../crates/kinavis-land", features = ["formats"] }
+kinavis-terrain = { version = "0.1.0", path = "../crates/kinavis-terrain" }
+kinavis-wmm = { version = "0.1.0", path = "../crates/kinavis-wmm", features = ["wmm2025"] }
 
 [lints]
 workspace = true

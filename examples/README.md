@@ -1,6 +1,6 @@
 # KINAVIS demonstrations
 
-Six short programs, each run on data recorded from real equipment. Nothing
+Eight short programs, each run on data recorded from real equipment. Nothing
 here is simulated except where it says so.
 
 ```sh
@@ -10,6 +10,9 @@ cargo run -p kinavis-examples --example traffic
 cargo run -p kinavis-examples --example course_to_steer
 cargo run -p kinavis-examples --example integrity
 cargo run -p kinavis-examples --example field
+# With data fetched, not in the repository:
+SRTM_TILES=… cargo run -p kinavis-examples --example walk
+SEATTLE_DATA=… cargo run --release -p kinavis-examples --example drive
 ```
 
 ## `receivers` — what real receivers send
@@ -160,3 +163,52 @@ GPSD_LOGS=path/to/gpsd/test/daemon cargo test -p kinavis-examples --test gpsd_co
 
 Recorded data from other equipment is welcome: see *Help wanted* in the
 [main README](../README.md).
+
+## `walk` — up Elbrus on the map
+
+The southern route's stops as MGRS references, their heights on the SRTM 1″
+tile N43E042 (public domain; fetched), the card of magnetic bearings for
+2026 by WMM2025 with the grid magnetic angle of UTM 38T, in degrees and
+Soviet mils, each leg's climb on the terrain and the time by Naismith's
+rule, a resection on three summits from readings constructed with a 2.5°
+compass error, the summit's line of sight from the hut, a crevasse field
+kept out of, and the route as GPX. The stops are read off a map to a few
+hundred metres.
+
+```text
+Stops (MGRS, height on SRTM):
+  Azau             38TKN9539793296   2327 m
+  Garabashi        38TKN9438597417   3743 m
+  Pastukhov rocks  38TKP9374200304   4468 m
+  Saddle           38TKP9279202668   5461 m
+  East summit      38TKP9246703178   5613 m
+
+Declination 7.5°E, convergence -1.74°: grid magnetic angle +9.20°
+
+  leg                              magnetic  mils    ground   climb   time
+  Azau            → Garabashi        337.0°   5617    4243 m  1437 m  3h15
+  Garabashi       → Pastukhov rocks  338.2°   5637    2957 m   725 m  1h48
+  Pastukhov rocks → Saddle           328.9°   5482    2547 m   993 m  2h10
+  Saddle          → East summit      318.3°   5305     605 m   148 m  0h22
+  10352 m and 3304 m of climbing: 7h35 by Naismith's rule
+
+Resection on West summit, East summit, Donguz-Orun: 0.000 m from the hut; compass +11.70° from grid north (the grid magnetic angle and the 2.5° error)
+The summit from the hut: hidden (least clearance -146 m, 5.8 km out)
+Crevasse field: warned 16 m from its edge
+
+GPX, 588 bytes:
+```
+
+## `drive` — a tunnel on Newson and Krumm's drive
+
+Their drive through Seattle (7531 fixes at 1 Hz; Microsoft Research, no
+licence stated: fetched) with 40 fixes on a bending road cut out as a
+tunnel would. The map matcher carries the drive across the gap without a
+break, onto the road actually driven; dead reckoning on the last course and
+speed, for comparison, comes out 423 m off.
+
+```text
+7531 fixes, 40 cut for the tunnel; 4567 matched, 99.82 % on the road driven, 0 breaks
+Into the tunnel on road 884148000958, out of it on road 884148000985 (the road driven), after 41 s
+Dead reckoning at 16.7 m/s on 302°: 423 m from the exit fix after 872 m
+```

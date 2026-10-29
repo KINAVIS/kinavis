@@ -176,6 +176,9 @@ jobs:
       - run: cargo test --release -p kinavis-land --test seattle -- --ignored
         env:
           SEATTLE_DATA: ${{ runner.temp }}/seattle
+      - run: cargo run --release -p kinavis-examples --example drive
+        env:
+          SEATTLE_DATA: ${{ runner.temp }}/seattle
       - name: Fetch the SRTM tiles
         run: |
           mkdir -p "$RUNNER_TEMP/srtm"
@@ -189,6 +192,9 @@ jobs:
           gunzip N43E042.hgt.gz N55E037.hgt.gz
       # Heights against GDAL's, in crates/kinavis-terrain/tests/data.
       - run: cargo test -p kinavis-terrain --test srtm -- --ignored
+        env:
+          SRTM_TILES: ${{ runner.temp }}/srtm
+      - run: cargo run -p kinavis-examples --example walk
         env:
           SRTM_TILES: ${{ runner.temp }}/srtm
       # A foot-mounted IMU (University of Toronto, PyShoe; no licence: fetched,

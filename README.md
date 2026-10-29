@@ -246,7 +246,11 @@ problem, the current triangle, errors, `serde`, and what each aggregate
 weighs in memory — with examples that are compiled and run as tests.
 
 In the field, start from [`kinavis-agri`](crates/kinavis-agri/README.md): a
-field plane, an AB line and the pass under the antenna in a dozen lines.
+field plane, an AB line and the pass under the antenna in a dozen lines. On
+foot or on the road, from [`kinavis-land`](crates/kinavis-land/README.md) —
+bearings on the map grid, resection, routes by bearing, map matching,
+geofences, GPX — with [`kinavis-terrain`](crates/kinavis-terrain/README.md)
+for the ground under them.
 
 ## Help wanted: real hardware
 
