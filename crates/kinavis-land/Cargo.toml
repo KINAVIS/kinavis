@@ -1,0 +1,35 @@
+[package]
+name = "kinavis-land"
+description = "Land navigation for the KINAVIS navigation crates: grid, true and magnetic bearings, mils, intersection and resection on a map grid, pace counting and routes by bearing, without an allocator."
+documentation = "https://docs.rs/kinavis-land"
+readme = "README.md"
+keywords = ["land-navigation", "resection", "orienteering", "map-grid", "no-std"]
+categories = ["science::geo", "no-std::no-alloc", "algorithms"]
+# Satellite crate, versioned independently of the kernel.
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+homepage.workspace = true
+license.workspace = true
+include = ["src/**", "tests/**", "README.md", "LICENSE-*"]
+
+[features]
+default = ["std"]
+# Standard library floating-point maths.
+std = ["kinavis-kernel/std", "kinavis/std", "kinavis-grid/std"]
+# Pure-Rust `libm`, for `no_std` targets.
+libm = ["kinavis-kernel/libm", "kinavis/libm", "kinavis-grid/libm"]
+
+[dependencies]
+kinavis-kernel = { workspace = true }
+# Routes and the marine position fix the plane resection is checked against.
+kinavis = { version = "1.2.0", path = "../kinavis", default-features = false }
+kinavis-grid = { version = "0.1.0", path = "../kinavis-grid", default-features = false }
+
+[dev-dependencies]
+proptest = { workspace = true }
+
+[lints]
+workspace = true

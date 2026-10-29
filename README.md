@@ -103,6 +103,8 @@ graph BT
     integrity[kinavis-integrity] --> kernel
     agri[kinavis-agri] --> kinavis
     agri --> grid
+    land[kinavis-land] --> kinavis
+    land --> grid
     alerts[kinavis-alerts] --> traffic
     signalk[kinavis-signalk] --> traffic
     signalk --> colregs
@@ -148,6 +150,7 @@ graph BT
 | Crate | What it does |
 |---|---|
 | [`kinavis-agri`](https://docs.rs/kinavis-agri) | field guidance: a low-distortion field plane, AB lines, curves and pivot circles, parallel passes, tilt compensation, pure pursuit and Stanley, headland turns, coverage and section control |
+| [`kinavis-land`](https://docs.rs/kinavis-land) | land navigation: grid, true and magnetic bearings, mils, intersection and resection on a map grid (three-point by Tienstra, with the compass error), pace counting, routes by bearing |
 | [`kinavis-j1939`](https://docs.rs/kinavis-j1939) | SAE J1939 and ISO 11783-3: the 29-bit identifier, NAME and address claim, the transport protocols (BAM, RTS/CTS, ETP) |
 | [`kinavis-isobus`](https://docs.rs/kinavis-isobus) | ISOBUS (ISO 11783-7): wheel-based, ground-based and machine selected speed, the guidance messages |
 
