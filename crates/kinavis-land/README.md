@@ -42,6 +42,12 @@ assert_eq!(format!("{:.1}", fix.orientation.degrees()), "3.0");
   window of `W` fixes, a break and a new chain where no candidate is
   reachable — over a `RoadNetwork` the application provides (its index and
   its router).
+- **Files** (feature `formats`, with the standard library): GPX 1.1 and 1.0
+  waypoints, routes and tracks — position, elevation, time with its zone,
+  name — read and written, a route to a `kinavis` route and a track to
+  fixes; GeoJSON points, lines and polygons (holes, the RFC's ring order)
+  as features with a name, `Multi…` and collections split on reading. XML
+  by `xmlparser` (no `unsafe`, no dependencies).
 
 The plane problems are checked on constructed figures — inside and outside
 the triangle, both orientations, near the danger circle — against their
@@ -49,13 +55,17 @@ known solutions, and the resection against the marine fix of `kinavis`.
 The map matcher follows Newson and Krumm's own drive through Seattle (7531
 fixes at 1 Hz; data from Microsoft Research, fetched, not in the
 repository): 99.83 % of the fixes it keeps on the road driven, every one
-the right way, no break.
+the right way, no break. The GPX reader reads GPSBabel's 97 reference files
+(Garmin BaseCamp, ExpertGPS, Lowrance, Humminbird, SkyTraq and others;
+GPL-2.0 data, fetched) exactly as gpxpy does — 251 957 points; the GPX and
+GeoJSON readers are fuzzed.
 `no_std`, no allocation.
 
 ## Feature flags
 
 - `std` *(default)* — standard library maths.
 - `libm` — for `no_std` targets: `--no-default-features --features libm`.
+- `formats` — GPX and GeoJSON; needs the standard library.
 
 ## License
 
