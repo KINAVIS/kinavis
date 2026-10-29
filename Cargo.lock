@@ -168,7 +168,7 @@ dependencies = [
 
 [[package]]
 name = "kinavis-kernel"
-version = "1.1.0"
+version = "1.2.0"
 dependencies = [
  "libm",
  "proptest",
@@ -233,6 +233,15 @@ dependencies = [
  "kinavis-traffic",
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "kinavis-terrain"
+version = "0.1.0"
+dependencies = [
+ "kinavis",
+ "kinavis-kernel",
+ "proptest",
 ]
 
 [[package]]

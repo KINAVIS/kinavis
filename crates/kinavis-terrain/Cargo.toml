@@ -1,0 +1,36 @@
+[package]
+name = "kinavis-terrain"
+description = "Terrain for the KINAVIS navigation crates: SRTM/HGT elevation tiles over borrowed bytes, slope and aspect, profiles, line of sight and walking time, without an allocator."
+documentation = "https://docs.rs/kinavis-terrain"
+readme = "README.md"
+keywords = ["srtm", "elevation", "terrain", "line-of-sight", "no-std"]
+categories = ["science::geo", "no-std::no-alloc", "parser-implementations"]
+# Satellite crate, versioned independently of the kernel.
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+homepage.workspace = true
+license.workspace = true
+# Reference generators stay in the repository.
+include = ["src/**", "tests/**", "README.md", "LICENSE-*"]
+
+[features]
+default = ["std"]
+# Standard library floating-point maths.
+std = ["kinavis-kernel/std"]
+# Pure-Rust `libm`, for `no_std` targets.
+libm = ["kinavis-kernel/libm"]
+
+[dependencies]
+# Kernel only; the elevation port (`ElevationModel`) arrived in 1.2.
+kinavis-kernel = { version = "1.2.0", path = "../kinavis-kernel", default-features = false }
+
+[dev-dependencies]
+# The geodesic a profile's length is checked against.
+kinavis = { version = "1.2.0", path = "../kinavis" }
+proptest = { workspace = true }
+
+[lints]
+workspace = true

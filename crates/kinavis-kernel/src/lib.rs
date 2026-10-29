@@ -34,7 +34,7 @@
 //!   port.
 //! - [`observation`] — a value with its time and quality; age is computed.
 //! - [`geodesy`] — ellipsoids, heights with datum, ECEF, chart datums and their
-//!   transformation to WGS 84, the geoid port.
+//!   transformation to WGS 84, the geoid and terrain elevation ports.
 //! - [`local`] — NED and other local frames; vectors typed by frame and unit; a
 //!   frame anchored at a point; position and velocity in three dimensions.
 //! - [`gnss`] — a satellite fix, independent of the sentence format.
@@ -128,7 +128,8 @@ pub use event::{
     SensorHealth, SensorId, TargetId, MAX_EVENTS, SENSOR_NAME_BYTES,
 };
 pub use geodesy::{
-    Datum, EcefPoint, Ellipsoid, GeodeticPoint, GeoidModel, Height, Helmert, VerticalDatum,
+    Datum, EcefPoint, ElevationModel, Ellipsoid, GeodeticPoint, GeoidModel, Height, Helmert,
+    VerticalDatum,
 };
 pub use gnss::{Dop, FixType, GnssFix, GnssFixBuilder, GnssQuality};
 pub use inline::InlineStr;

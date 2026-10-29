@@ -98,6 +98,7 @@ graph BT
     traffic[kinavis-traffic] --> kinavis
     colregs[kinavis-colregs] --> kinavis
     grid[kinavis-grid] --> kernel
+    terrain[kinavis-terrain] --> kernel
     geoid[kinavis-geoid] --> kernel
     ubx[kinavis-ubx] --> kernel
     integrity[kinavis-integrity] --> kernel
@@ -126,6 +127,7 @@ graph BT
 | [`kinavis-integrity`](https://docs.rs/kinavis-integrity) | GNSS integrity: RAIM fault detection and exclusion, horizontal and vertical protection levels |
 | [`kinavis-geoid`](https://docs.rs/kinavis-geoid) | geoid heights from a global grid, EGM96 embedded: heights above the ellipsoid to heights above mean sea level |
 | [`kinavis-grid`](https://docs.rs/kinavis-grid) | map grids: transverse Mercator, UTM/UPS, MGRS, Gauss–Krüger zones (СК-42, СК-95, ГСК-2011) and national grids, grid north; Web Mercator and map tiles |
+| [`kinavis-terrain`](https://docs.rs/kinavis-terrain) | terrain: SRTM height tiles over borrowed bytes, slope and aspect, profiles, line of sight with curvature and refraction, Naismith's walking time |
 | [`kinavis-wmm`](https://docs.rs/kinavis-wmm) | the World Magnetic Model 2025: magnetic variation at any position |
 
 **Inertial**

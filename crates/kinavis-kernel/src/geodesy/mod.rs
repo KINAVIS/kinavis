@@ -341,6 +341,23 @@ pub trait GeoidModel {
     fn undulation(&self, position: Position) -> Result<Distance>;
 }
 
+/// Terrain elevation model: height of the ground surface.
+///
+/// A port, as [`GeoidModel`]: implementations (SRTM tiles, national models)
+/// live in adapter crates. The height carries its vertical datum; SRTM and
+/// most digital elevation models give it above mean sea level (the EGM96
+/// geoid), so a GNSS height is compared with it only after
+/// [`GeodeticPoint::to_mean_sea_level`].
+pub trait ElevationModel {
+    /// Height of the ground at a position.
+    ///
+    /// # Errors
+    ///
+    /// Implementation-defined: typically [`KernelError::OutsideValidity`]
+    /// outside the model's coverage or over a void in it.
+    fn elevation(&self, position: Position) -> Result<Height>;
+}
+
 impl fmt::Display for Height {
     /// Formats as `48.0 m above the ellipsoid`.
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
