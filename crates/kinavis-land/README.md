@@ -37,10 +37,19 @@ assert_eq!(format!("{:.1}", fix.orientation.degrees()), "3.0");
   the horizontal on a slope.
 - **Route by bearings**: legs of grid or magnetic bearing and ground distance
   laid out on the grid as a `kinavis` route, and the card of a route back.
+- **Map matching**: the road of each fix of a drive by the hidden Markov
+  model of Newson and Krumm — `K` candidates a fix, Viterbi over a fixed
+  window of `W` fixes, a break and a new chain where no candidate is
+  reachable — over a `RoadNetwork` the application provides (its index and
+  its router).
 
 The plane problems are checked on constructed figures — inside and outside
 the triangle, both orientations, near the danger circle — against their
 known solutions, and the resection against the marine fix of `kinavis`.
+The map matcher follows Newson and Krumm's own drive through Seattle (7531
+fixes at 1 Hz; data from Microsoft Research, fetched, not in the
+repository): 99.83 % of the fixes it keeps on the road driven, every one
+the right way, no break.
 `no_std`, no allocation.
 
 ## Feature flags

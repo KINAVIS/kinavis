@@ -15,6 +15,9 @@
 //!    bearings, [`three_point_resection`] from readings with an unknown zero.
 //! 4. **Pace count and route by bearings**: [`PaceCount`], [`Leg`],
 //!    [`route_from_legs`] and the card back, [`legs_of`].
+//! 5. **Map matching**: [`MapMatcher`], the hidden Markov model of Newson
+//!    and Krumm over a [`RoadNetwork`] the application provides; a router's
+//!    polyline as a route, [`route_from_polyline`].
 //!
 //! ```rust
 //! use kinavis_land::{intersection, BearingFrame, GridPoint, MapGrid, Mils};
@@ -59,14 +62,18 @@ mod bearings;
 mod card;
 mod error;
 mod grid;
+mod matching;
 mod pace;
+mod polyline;
 mod resection;
 
 pub use bearings::{BearingFrame, Mils};
 pub use card::{legs_of, route_from_legs, Leg};
 pub use error::{LandError, Result};
 pub use grid::{GridPoint, MapGrid, OnGrid};
+pub use matching::{Candidate, MapMatcher, Matched, MatcherConfig, RoadId, RoadNetwork};
 pub use pace::{PaceCount, MAX_SLOPE_DEGREES};
+pub use polyline::{route_from_polyline, Simplified};
 pub use resection::{
     grid_bearing, grid_distance, intersection, resection, three_point_resection, PlaneFix,
     Sighting, ThreePointFix, DANGER_LIMIT,
