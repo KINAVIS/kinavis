@@ -1,18 +1,20 @@
 [package]
 name = "kinavis-ins"
-description = "A strapdown inertial navigation system for the KINAVIS navigation types: NED mechanisation of an IMU and a fifteen-state error-state Kalman filter aided by GNSS, heading, wheel speed and the non-holonomic constraint, without an allocator."
+description = "A strapdown inertial navigation system for the KINAVIS navigation types: NED mechanisation of an IMU and a fifteen-state error-state Kalman filter aided by GNSS, heading, wheel speed and the non-holonomic constraint; pedestrian dead reckoning with stance detection, steps and a tilt-compensated compass, without an allocator."
 documentation = "https://docs.rs/kinavis-ins"
 readme = "README.md"
 keywords = ["inertial-navigation", "imu", "kalman", "sensor-fusion", "no-std"]
 categories = ["science", "no-std::no-alloc", "algorithms"]
 # Satellite crate, versioned independently of the kernel.
-version = "0.2.1"
+version = "0.3.0"
 authors.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 repository.workspace = true
 homepage.workspace = true
 license.workspace = true
+# Reference converters stay in the repository.
+include = ["src/**", "tests/**", "README.md", "LICENSE-*"]
 
 [features]
 default = ["std"]

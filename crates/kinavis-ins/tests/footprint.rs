@@ -24,4 +24,7 @@ fn within<T>(budget: usize) {
 fn the_filter_and_the_mechanisation_stay_within_their_budgets() {
     within::<kinavis_ins::InsFilter>(2560);
     within::<kinavis_ins::Strapdown>(320);
+    // A window of samples held inline.
+    within::<kinavis_ins::StanceDetector>(3_128);
+    within::<kinavis_ins::StepDetector>(96);
 }
