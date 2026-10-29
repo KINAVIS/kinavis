@@ -26,6 +26,14 @@ pub enum LandError {
         /// observer's distance from it over its radius nearby.
         strength: f64,
     },
+    /// A GPX or `GeoJSON` file that does not read: malformed, or missing
+    /// what the format requires.
+    Format {
+        /// What was wrong or missing.
+        what: &'static str,
+        /// Line, from 1; 0 where the format gives none.
+        line: u32,
+    },
 }
 
 impl From<NavigationError> for LandError {
@@ -44,6 +52,7 @@ impl fmt::Display for LandError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Navigation(error) => fmt::Display::fmt(error, f),
+            Self::Format { what, line } => write!(f, "file not readable: {what} at line {line}"),
             Self::DangerCircle { strength } => write!(
                 f,
                 "resection on the danger circle: figure strength {strength:.1e}"

@@ -18,6 +18,8 @@
 //! 5. **Map matching**: [`MapMatcher`], the hidden Markov model of Newson
 //!    and Krumm over a [`RoadNetwork`] the application provides; a router's
 //!    polyline as a route, [`route_from_polyline`].
+//! 6. **Files** (feature `formats`): GPX 1.1 waypoints, routes and tracks
+//!    (`Gpx`), and `GeoJSON` features (`to_geojson`, `parse_geojson`).
 //!
 //! ```rust
 //! use kinavis_land::{intersection, BearingFrame, GridPoint, MapGrid, Mils};
@@ -48,6 +50,7 @@
 //!
 //! - `std` *(default)* — standard library maths.
 //! - `libm` — for `no_std` targets: `--no-default-features --features libm`.
+//! - `formats` — GPX and `GeoJSON`; needs the standard library.
 //!
 //! No allocation; builds for bare-metal targets.
 
@@ -61,6 +64,10 @@ pub struct ReadmeExamples;
 mod bearings;
 mod card;
 mod error;
+#[cfg(feature = "formats")]
+mod geojson;
+#[cfg(feature = "formats")]
+mod gpx;
 mod grid;
 mod matching;
 mod pace;
@@ -70,6 +77,10 @@ mod resection;
 pub use bearings::{BearingFrame, Mils};
 pub use card::{legs_of, route_from_legs, Leg};
 pub use error::{LandError, Result};
+#[cfg(feature = "formats")]
+pub use geojson::{parse_geojson, to_geojson, Feature, Geometry};
+#[cfg(feature = "formats")]
+pub use gpx::{Gpx, GpxPoint, GpxRoute, GpxTrack};
 pub use grid::{GridPoint, MapGrid, OnGrid};
 pub use matching::{Candidate, MapMatcher, Matched, MatcherConfig, RoadId, RoadNetwork};
 pub use pace::{PaceCount, MAX_SLOPE_DEGREES};

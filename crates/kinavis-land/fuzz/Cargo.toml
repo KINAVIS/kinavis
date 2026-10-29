@@ -1,0 +1,29 @@
+[package]
+name = "kinavis-land-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2021"
+
+# Separate workspace, built only by cargo-fuzz.
+[workspace]
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+kinavis-land = { path = "..", features = ["formats"] }
+
+[[bin]]
+name = "gpx"
+path = "fuzz_targets/gpx.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "geojson"
+path = "fuzz_targets/geojson.rs"
+test = false
+doc = false
+bench = false
