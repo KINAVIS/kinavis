@@ -35,6 +35,7 @@ jobs:
       - run: cargo test -p kinavis-kernel -p kinavis -p kinavis-nmea0183 -p kinavis-traffic -p kinavis-colregs -p kinavis-alerts -p kinavis-ais -p kinavis-nmea2000 -p kinavis-ins --no-default-features --features libm
       - run: cargo test -p kinavis-geoid --no-default-features --features "libm egm96"
       - run: cargo test -p kinavis-grid --no-default-features --features libm
+      - run: cargo test -p kinavis-terrain --no-default-features --features libm
       - run: cargo test -p kinavis-ubx --no-default-features --features libm
       - run: cargo test -p kinavis-integrity --no-default-features --features libm
       - run: cargo test -p kinavis-agri --no-default-features --features libm
@@ -85,7 +86,7 @@ jobs:
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
       - run: cargo fmt --all --check
       - run: cargo clippy --workspace --all-targets --all-features
-      - run: cargo clippy -p kinavis-kernel -p kinavis -p kinavis-nmea0183 -p kinavis-wmm -p kinavis-geoid -p kinavis-grid -p kinavis-ubx -p kinavis-integrity -p kinavis-agri -p kinavis-land -p kinavis-j1939 -p kinavis-isobus -p kinavis-mavlink -p kinavis-ros2 -p kinavis-traffic -p kinavis-colregs -p kinavis-alerts -p kinavis-ais -p kinavis-nmea2000 -p kinavis-ins --all-targets --no-default-features --features libm
+      - run: cargo clippy -p kinavis-kernel -p kinavis -p kinavis-nmea0183 -p kinavis-wmm -p kinavis-geoid -p kinavis-grid -p kinavis-terrain -p kinavis-ubx -p kinavis-integrity -p kinavis-agri -p kinavis-land -p kinavis-j1939 -p kinavis-isobus -p kinavis-mavlink -p kinavis-ros2 -p kinavis-traffic -p kinavis-colregs -p kinavis-alerts -p kinavis-ais -p kinavis-nmea2000 -p kinavis-ins --all-targets --no-default-features --features libm
       - run: cargo clippy -p kinavis-kernel -p kinavis --all-targets --no-default-features --features "libm alloc"
       - run: cargo clippy -p kinavis-kernel -p kinavis -p kinavis-agri --all-targets --no-default-features --features "libm serde"
       - run: cargo doc --workspace --no-deps --all-features
@@ -102,6 +103,9 @@ jobs:
       POLYCAN_COMMIT: f4f43254b738c7e318ebe7c9f7dbbddb846d0dc1
       # GPSBabel's reference files, at a pinned commit.
       GPSBABEL_COMMIT: 6cdf816c2bf67ff0f1a6b7940b1be11e1cada6fe
+      # SRTM 1″ tiles (public domain) from the Terrain Tiles on AWS, checked
+      # by digest.
+      SRTM_BASE: https://s3.amazonaws.com/elevation-tiles-prod/skadi
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # v1
@@ -172,6 +176,21 @@ jobs:
       - run: cargo test --release -p kinavis-land --test seattle -- --ignored
         env:
           SEATTLE_DATA: ${{ runner.temp }}/seattle
+      - name: Fetch the SRTM tiles
+        run: |
+          mkdir -p "$RUNNER_TEMP/srtm"
+          cd "$RUNNER_TEMP/srtm"
+          curl -sfSL -o N43E042.hgt.gz "$SRTM_BASE/N43/N43E042.hgt.gz"
+          curl -sfSL -o N55E037.hgt.gz "$SRTM_BASE/N55/N55E037.hgt.gz"
+          printf '%s  %s\n' \
+            eea190e6c5fe4b6655b4fe0af748a877c8caa073f4fca1e87a3667011e5065c4 N43E042.hgt.gz \
+            63c6093906e5a4a40f113b1c31fb3d3acb7734abae0034f03f7e7d70d8688aba N55E037.hgt.gz \
+            | sha256sum -c -
+          gunzip N43E042.hgt.gz N55E037.hgt.gz
+      # Heights against GDAL's, in crates/kinavis-terrain/tests/data.
+      - run: cargo test -p kinavis-terrain --test srtm -- --ignored
+        env:
+          SRTM_TILES: ${{ runner.temp }}/srtm
 
   no-std:
     name: Build for a bare-metal target
@@ -188,6 +207,7 @@ jobs:
       - run: cargo build -p kinavis-kernel -p kinavis -p kinavis-nmea0183 -p kinavis-wmm -p kinavis-traffic -p kinavis-colregs -p kinavis-alerts -p kinavis-ais -p kinavis-nmea2000 -p kinavis-ins --target thumbv7em-none-eabihf --no-default-features --features "libm wmm2025"
       - run: cargo build -p kinavis-geoid --target thumbv7em-none-eabihf --no-default-features --features "libm egm96"
       - run: cargo build -p kinavis-grid --target thumbv7em-none-eabihf --no-default-features --features libm
+      - run: cargo build -p kinavis-terrain --target thumbv7em-none-eabihf --no-default-features --features libm
       - run: cargo build -p kinavis-ubx --target thumbv7em-none-eabihf --no-default-features --features libm
       - run: cargo build -p kinavis-integrity --target thumbv7em-none-eabihf --no-default-features --features libm
       - run: cargo build -p kinavis-agri --target thumbv7em-none-eabihf --no-default-features --features libm
@@ -245,6 +265,8 @@ jobs:
             target: mgrs
           - crate: kinavis-grid
             target: tiles
+          - crate: kinavis-terrain
+            target: hgt
           - crate: kinavis-ubx
             target: deframe
           - crate: kinavis

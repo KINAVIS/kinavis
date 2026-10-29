@@ -37,6 +37,10 @@ allow = ["kinavis-kernel"]
 [kinavis-grid]
 allow = ["kinavis-kernel"]
 
+[kinavis-terrain]
+# Terrain over the kernel's elevation port; the tiles are the caller's.
+allow = ["kinavis-kernel"]
+
 [kinavis-ubx]
 allow = ["kinavis-kernel"]
 
