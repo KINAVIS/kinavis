@@ -11,6 +11,11 @@ and implementable for application unions. Priority is a vessel policy
 cautions, keeps one alert per condition regardless of repetition, tracks active
 / acknowledged / rectified states, and lists standing alerts by priority.
 
+On land, with the features `land` and `agri`: a geofence breached (a
+warning) or approached (a caution), back on the safe side ending both; field
+guidance off its pass line (the cross-track warning) and the end of the pass
+approaching (a caution), ended by taking up the next pass.
+
 No allocation; builds for bare-metal targets. The board is several kilobytes and
 deliberately not `Copy`: keep it behind a reference or in a `static`.
 
@@ -46,6 +51,8 @@ The navigation algorithms and the list of the other KINAVIS crates are in
 
 ## Feature flags
 
+- `land` — geofence events of `kinavis-land`.
+- `agri` — field guidance events of `kinavis-agri`.
 - `std` *(default)* — standard library maths in the kernel.
 - `libm` — for `no_std` targets: `--no-default-features --features libm`.
 - `serde` — serialisation of the value types.

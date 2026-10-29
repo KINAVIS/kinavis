@@ -42,6 +42,10 @@ assert_eq!(format!("{:.1}", fix.orientation.degrees()), "3.0");
   window of `W` fixes, a break and a new chain where no candidate is
   reachable — over a `RoadNetwork` the application provides (its index and
   its router).
+- **Geofences**: a region of the map grid to keep in or keep out of;
+  entered, exited and approaching-the-boundary events past a hysteresis
+  band, so a fix scattering at the boundary does not chatter; reported on
+  the alert board of `kinavis-alerts` (feature `land`).
 - **Files** (feature `formats`, with the standard library): GPX 1.1 and 1.0
   waypoints, routes and tracks — position, elevation, time with its zone,
   name — read and written, a route to a `kinavis` route and a track to

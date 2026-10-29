@@ -28,7 +28,7 @@ from pathlib import Path
 TARGET = "thumbv7em-none-eabihf"
 FEATURES = "libm"
 # Crates whose optional code is shipped too: built with it switched on.
-FEATURES_OF = {"kinavis-mavlink": "libm signing"}
+FEATURES_OF = {"kinavis-mavlink": "libm signing", "kinavis-alerts": "libm land agri"}
 # Release build, and release with overflow checks: an unchecked wrapping `+`
 # is a panic path in the latter and a silently wrong value in the former.
 PROFILES = ["release", "strict"]

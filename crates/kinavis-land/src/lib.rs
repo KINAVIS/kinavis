@@ -18,7 +18,9 @@
 //! 5. **Map matching**: [`MapMatcher`], the hidden Markov model of Newson
 //!    and Krumm over a [`RoadNetwork`] the application provides; a router's
 //!    polyline as a route, [`route_from_polyline`].
-//! 6. **Files** (feature `formats`): GPX 1.1 waypoints, routes and tracks
+//! 6. **Geofences**: [`Geofence`] over a region of the map grid, to keep in
+//!    or keep out of, with [`GeofenceEvent`]s past a hysteresis band.
+//! 7. **Files** (feature `formats`): GPX 1.1 waypoints, routes and tracks
 //!    (`Gpx`), and `GeoJSON` features (`to_geojson`, `parse_geojson`).
 //!
 //! ```rust
@@ -64,6 +66,7 @@ pub struct ReadmeExamples;
 mod bearings;
 mod card;
 mod error;
+mod geofence;
 #[cfg(feature = "formats")]
 mod geojson;
 #[cfg(feature = "formats")]
@@ -77,6 +80,7 @@ mod resection;
 pub use bearings::{BearingFrame, Mils};
 pub use card::{legs_of, route_from_legs, Leg};
 pub use error::{LandError, Result};
+pub use geofence::{FenceConfig, FenceId, FenceKind, Geofence, GeofenceEvent};
 #[cfg(feature = "formats")]
 pub use geojson::{parse_geojson, to_geojson, Feature, Geometry};
 #[cfg(feature = "formats")]

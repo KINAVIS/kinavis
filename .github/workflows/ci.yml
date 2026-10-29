@@ -40,6 +40,7 @@ jobs:
       - run: cargo test -p kinavis-agri --no-default-features --features libm
       - run: cargo test -p kinavis-land --no-default-features --features libm
       - run: cargo test -p kinavis-land --features formats
+      - run: cargo test -p kinavis-alerts --no-default-features --features "libm land agri"
       - run: cargo test -p kinavis-j1939 -p kinavis-isobus --no-default-features --features libm
       - run: cargo test -p kinavis-mavlink --no-default-features --features "libm signing"
       - run: cargo test -p kinavis-ros2 --no-default-features --features libm
@@ -191,6 +192,7 @@ jobs:
       - run: cargo build -p kinavis-integrity --target thumbv7em-none-eabihf --no-default-features --features libm
       - run: cargo build -p kinavis-agri --target thumbv7em-none-eabihf --no-default-features --features libm
       - run: cargo build -p kinavis-land --target thumbv7em-none-eabihf --no-default-features --features libm
+      - run: cargo build -p kinavis-alerts --target thumbv7em-none-eabihf --no-default-features --features "libm land agri"
       - run: cargo build -p kinavis-j1939 -p kinavis-isobus --target thumbv7em-none-eabihf --no-default-features --features libm
       - run: cargo build -p kinavis-mavlink --target thumbv7em-none-eabihf --no-default-features --features "libm signing"
       - run: cargo build -p kinavis-ros2 --target thumbv7em-none-eabihf --no-default-features --features libm

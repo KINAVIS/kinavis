@@ -57,7 +57,7 @@ allow = ["kinavis-kernel", "kinavis", "serde"]
 # The one place every context's events meet: the board takes the kernel's,
 # guidance's and the traffic picture's events and names the union, so it
 # sits above all three. Dependencies still point inward only.
-allow = ["kinavis-kernel", "kinavis", "kinavis-traffic", "serde"]
+allow = ["kinavis-kernel", "kinavis", "kinavis-traffic", "kinavis-land", "kinavis-agri", "serde"]
 
 [kinavis-ais]
 # An adapter over an adapter: the message arrives in a sentence, so the
@@ -117,4 +117,4 @@ kinavis-modules = ["region", "error", "event", "sailings", "fix", "gnss_intake",
 # from the algorithms. A land crate (ADR-0014): it names `kinavis` only
 # through the neutral modules below.
 allow = ["kinavis-kernel", "kinavis", "kinavis-grid", "xmlparser", "serde_json"]
-kinavis-modules = ["error", "event", "sailings", "fix", "gnss_intake", "dead_reckoning", "estimator", "observations", "route", "guidance", "turning", "schedule", "sun", "relative_motion"]
+kinavis-modules = ["region", "error", "event", "sailings", "fix", "gnss_intake", "dead_reckoning", "estimator", "observations", "route", "guidance", "turning", "schedule", "sun", "relative_motion"]
