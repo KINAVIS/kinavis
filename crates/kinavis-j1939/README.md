@@ -22,7 +22,7 @@ assert_eq!(frame.id.source(), 0x47);
   with flow control (RTS/CTS), received as a participant or followed as a
   bus monitor; broadcast frames and a connection sender.
 - **Extended transport** (up to 117 MB): reception with data packet
-  offsets.
+  offsets, and a connection sender over borrowed data.
 
 Every part is a state machine over frames and instants passed in; the CAN
 controller, the sending and the clock are the caller's. Fast packet stays

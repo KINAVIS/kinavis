@@ -23,4 +23,6 @@ fn identifiers_claims_and_transport_stay_small() {
     within::<kinavis_j1939::TransportReceiver<4, 1785>>(7_320);
     within::<kinavis_j1939::TransportSender<1785>>(1_840);
     within::<kinavis_j1939::ExtendedReceiver<1, 65_536>>(65_600);
+    // The data is borrowed.
+    within::<kinavis_j1939::ExtendedSender<'static>>(48);
 }
