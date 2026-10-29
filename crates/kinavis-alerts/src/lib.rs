@@ -195,6 +195,18 @@ pub enum AlertKind {
     },
     /// An observation was rejected.
     ObservationRejected,
+    /// A geofence's rule broken: out of a keep-in fence, into a keep-out one.
+    GeofenceBreached {
+        /// Fence.
+        fence: u16,
+    },
+    /// Near a geofence's boundary on the side to keep to.
+    GeofenceApproaching {
+        /// Fence.
+        fence: u16,
+    },
+    /// The end of the pass being worked is near: the turn is ahead.
+    EndOfPassApproaching,
 }
 
 /// Conditions an event ends.
@@ -210,6 +222,8 @@ pub enum Ended {
     /// Every integrity degradation: an integrity change supersedes the standing
     /// degradation and raises its own if it is one.
     EveryIntegrityDegradation,
+    /// Every condition of one geofence: back on the side to keep to.
+    Fence(u16),
 }
 
 /// Alert identifier, unique while the alert stands.

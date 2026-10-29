@@ -6,7 +6,7 @@ readme = "README.md"
 keywords = ["alarm", "alerts", "marine", "navigation", "no-std"]
 categories = ["science", "no-std::no-alloc"]
 # Satellite crate: alert policy, versioned independently of the domain.
-version = "0.1.0"
+version = "0.1.1"
 authors.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -17,9 +17,25 @@ license.workspace = true
 [features]
 default = ["std"]
 # Standard library floating-point maths.
-std = ["kinavis-kernel/std", "kinavis/std", "kinavis-traffic/std"]
+std = [
+    "kinavis-kernel/std",
+    "kinavis/std",
+    "kinavis-traffic/std",
+    "kinavis-land?/std",
+    "kinavis-agri?/std",
+]
 # Pure-Rust `libm`, for `no_std` targets.
-libm = ["kinavis-kernel/libm", "kinavis/libm", "kinavis-traffic/libm"]
+libm = [
+    "kinavis-kernel/libm",
+    "kinavis/libm",
+    "kinavis-traffic/libm",
+    "kinavis-land?/libm",
+    "kinavis-agri?/libm",
+]
+# Geofence events of the land crate.
+land = ["dep:kinavis-land"]
+# Field guidance events of the agriculture crate.
+agri = ["dep:kinavis-agri"]
 # Serialisation of the value types.
 serde = [
     "dep:serde",
@@ -33,6 +49,8 @@ serde = [
 kinavis-kernel = { workspace = true }
 kinavis = { workspace = true }
 kinavis-traffic = { version = "0.1.0", path = "../kinavis-traffic", default-features = false }
+kinavis-land = { version = "0.1.3", path = "../kinavis-land", default-features = false, optional = true }
+kinavis-agri = { version = "0.1.4", path = "../kinavis-agri", default-features = false, optional = true }
 serde = { workspace = true, optional = true }
 
 [dev-dependencies]

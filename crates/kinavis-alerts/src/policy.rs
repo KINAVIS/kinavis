@@ -57,9 +57,11 @@ impl AlertPolicy for StandardPolicy {
                 NavigationIntegrity::DeadReckoning => Some(AlertPriority::Caution),
                 _ => None,
             },
-            AlertKind::SensorSuspect { .. } | AlertKind::TargetLost { .. } => {
-                Some(AlertPriority::Caution)
-            }
+            AlertKind::SensorSuspect { .. }
+            | AlertKind::TargetLost { .. }
+            | AlertKind::GeofenceApproaching { .. }
+            | AlertKind::EndOfPassApproaching => Some(AlertPriority::Caution),
+            AlertKind::GeofenceBreached { .. } => Some(AlertPriority::Warning),
             _ => None,
         }
     }

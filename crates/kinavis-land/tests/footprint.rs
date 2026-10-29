@@ -26,4 +26,7 @@ fn grids_fixes_and_legs_stay_small() {
     // 8 candidates a fix over a window of 16 fixes.
     within::<kinavis_land::MapMatcher<8, 16>>(10_496);
     within::<kinavis_land::Candidate>(56);
+    within::<kinavis_land::GeofenceEvent>(32);
+    // A 16-gon with two 8-gon holes and the map grid.
+    within::<kinavis_land::Geofence<16, 8, 2>>(872);
 }

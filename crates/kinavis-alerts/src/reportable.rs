@@ -126,3 +126,59 @@ impl Reportable for TrafficEvent {
         }
     }
 }
+
+#[cfg(feature = "land")]
+impl Reportable for kinavis_land::GeofenceEvent {
+    /// A breach and a near approach are conditions; a crossing back is not.
+    fn condition(&self) -> Option<AlertKind> {
+        match self {
+            event if event.is_breach() => Some(AlertKind::GeofenceBreached {
+                fence: fence_of(event),
+            }),
+            Self::ApproachingBoundary { fence, .. } => {
+                Some(AlertKind::GeofenceApproaching { fence: *fence })
+            }
+            _ => None,
+        }
+    }
+
+    /// Back on the side to keep to ends the fence's breach and warning.
+    fn ends(&self) -> Ended {
+        match self {
+            Self::ApproachingBoundary { .. } => Ended::Nothing,
+            event if event.is_breach() => Ended::Nothing,
+            event => Ended::Fence(fence_of(event)),
+        }
+    }
+}
+
+#[cfg(feature = "land")]
+fn fence_of(event: &kinavis_land::GeofenceEvent) -> u16 {
+    match event {
+        kinavis_land::GeofenceEvent::Entered { fence, .. }
+        | kinavis_land::GeofenceEvent::Exited { fence, .. }
+        | kinavis_land::GeofenceEvent::ApproachingBoundary { fence, .. } => *fence,
+    }
+}
+
+#[cfg(feature = "agri")]
+impl Reportable for kinavis_agri::AgriEvent {
+    /// Off the pass line is the guidance cross-track condition; the end of
+    /// the pass approaching is a caution.
+    fn condition(&self) -> Option<AlertKind> {
+        match self {
+            Self::OffLine { .. } => Some(AlertKind::CrossTrackExceeded),
+            Self::EndOfPassApproaching { .. } => Some(AlertKind::EndOfPassApproaching),
+            _ => None,
+        }
+    }
+
+    /// Taking up another pass ends the warning of the last one's end and
+    /// its cross-track condition.
+    fn ends(&self) -> Ended {
+        match self {
+            Self::PassChanged { .. } => Ended::One(AlertKind::EndOfPassApproaching),
+            _ => Ended::Nothing,
+        }
+    }
+}

@@ -324,6 +324,11 @@ impl<P: AlertPolicy> AlertManager<P> {
                 Ended::EveryIntegrityDegradation => {
                     matches!(alert.kind, AlertKind::IntegrityDegraded { .. })
                 }
+                Ended::Fence(fence) => matches!(
+                    alert.kind,
+                    AlertKind::GeofenceBreached { fence: f } | AlertKind::GeofenceApproaching { fence: f }
+                        if f == fence
+                ),
                 Ended::Nothing => false,
             };
             if ends {
