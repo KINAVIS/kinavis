@@ -111,3 +111,10 @@ allow = ["kinavis-kernel", "kinavis", "kinavis-traffic", "kinavis-colregs", "ser
 # the neutral modules below, never the marine ones or the crate root.
 allow = ["kinavis-kernel", "kinavis", "kinavis-grid", "serde"]
 kinavis-modules = ["region", "error", "event", "sailings", "fix", "gnss_intake", "dead_reckoning", "estimator", "observations", "route", "guidance", "turning", "schedule", "sun", "relative_motion"]
+
+[kinavis-land]
+# Land navigation: the map grid from the grids, routes and the marine fix
+# from the algorithms. A land crate (ADR-0014): it names `kinavis` only
+# through the neutral modules below.
+allow = ["kinavis-kernel", "kinavis", "kinavis-grid"]
+kinavis-modules = ["error", "event", "sailings", "fix", "gnss_intake", "dead_reckoning", "estimator", "observations", "route", "guidance", "turning", "schedule", "sun", "relative_motion"]

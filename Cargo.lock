@@ -175,6 +175,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "kinavis-land"
+version = "0.1.0"
+dependencies = [
+ "kinavis",
+ "kinavis-grid",
+ "kinavis-kernel",
+ "proptest",
+]
+
+[[package]]
 name = "kinavis-mavlink"
 version = "0.1.0"
 dependencies = [
