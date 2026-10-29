@@ -119,7 +119,7 @@ dependencies = [
 
 [[package]]
 name = "kinavis-grid"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "kinavis-kernel",
  "proptest",

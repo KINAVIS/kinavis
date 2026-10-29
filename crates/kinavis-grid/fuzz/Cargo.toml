@@ -21,3 +21,10 @@ path = "fuzz_targets/mgrs.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "tiles"
+path = "fuzz_targets/tiles.rs"
+test = false
+doc = false
+bench = false

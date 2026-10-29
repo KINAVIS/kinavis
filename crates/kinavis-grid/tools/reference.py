@@ -17,10 +17,22 @@ geographic CRS to its projected CRS, so no datum shift is involved: for
 random points in each preset's zone, easting and northing.
 Columns: preset zone latitude longitude easting northing.
 
-    python3 -I tools/reference.py
+web_mercator_reference.txt — PROJ through pyproj, EPSG:4326 to EPSG:3857
+and back: rows "forward latitude longitude x y" and "inverse x y latitude
+longitude".
 
-Requires pyproj and GeographicLib's GeoConvert on the PATH.
+tiles_reference.txt — mercantile (Mapbox, BSD), the OpenStreetMap tile
+formulas: for random points at zooms 0 to 30, the tile, its quadkey and its
+edges. Columns: latitude longitude zoom x y quadkey west south east north;
+quadkey "-" at zoom 0.
+
+    python3 -I tools/reference.py            # every file
+    python3 -I tools/reference.py web        # the last two only
+
+Requires pyproj, mercantile and GeographicLib's GeoConvert on the PATH.
 """
+
+import sys
 
 import random
 import subprocess
@@ -103,7 +115,57 @@ def gauss_kruger():
                 out.write(f"{name} {zone} {lat:.12f} {lon:.12f} {easting:.6f} {northing:.6f}\n")
 
 
+MAX_LATITUDE = 85.0511287798066
+
+
+def web_mercator():
+    web = random.Random(20261029)
+    forward = Transformer.from_crs("EPSG:4326", "EPSG:3857", always_xy=True)
+    inverse = Transformer.from_crs("EPSG:3857", "EPSG:4326", always_xy=True)
+    points = [(web.uniform(-MAX_LATITUDE, MAX_LATITUDE), web.uniform(-180.0, 180.0))
+              for _ in range(3000)]
+    points += [(lat, lon) for lat in (-MAX_LATITUDE, -60.0, 0.0, 1e-9, 45.0, MAX_LATITUDE)
+               for lon in (-180.0, -90.0, 0.0, 1e-9, 179.999999999)]
+    half = 20037508.342789244
+    planes = [(web.uniform(-half, half), web.uniform(-half, half)) for _ in range(2000)]
+    with open("tests/data/web_mercator_reference.txt", "w") as out:
+        out.write("# forward latitude longitude x y | inverse x y latitude longitude\n")
+        for lat, lon in points:
+            x, y = forward.transform(lon, lat)
+            out.write(f"forward {lat:.15f} {lon:.15f} {x:.9f} {y:.9f}\n")
+        for x, y in planes:
+            lon, lat = inverse.transform(x, y)
+            out.write(f"inverse {x:.9f} {y:.9f} {lat:.15f} {lon:.15f}\n")
+
+
+def tiles():
+    import mercantile
+
+    web = random.Random(20261030)
+    rows = []
+    for zoom in range(0, 31):
+        for _ in range(150):
+            lat = web.uniform(-MAX_LATITUDE + 1e-9, MAX_LATITUDE - 1e-9)
+            lon = web.uniform(-180.0, 180.0)
+            rows.append((lat, lon, zoom))
+        # Edges between tiles at this zoom, nudged off them.
+        for x in sorted({0, 1, (1 << zoom) // 2, (1 << zoom) - 1} & set(range(1 << zoom))):
+            west = mercantile.bounds(mercantile.Tile(x, 0, zoom)).west
+            rows.append((10.0, west + 1e-9, zoom))
+    with open("tests/data/tiles_reference.txt", "w") as out:
+        out.write("# latitude longitude zoom x y quadkey west south east north\n")
+        for lat, lon, zoom in rows:
+            tile = mercantile.tile(lon, lat, zoom)
+            key = mercantile.quadkey(tile) or "-"
+            b = mercantile.bounds(tile)
+            out.write(f"{lat:.15f} {lon:.15f} {zoom} {tile.x} {tile.y} {key} "
+                      f"{b.west:.15f} {b.south:.15f} {b.east:.15f} {b.north:.15f}\n")
+
+
 if __name__ == "__main__":
-    utm_ups()
-    mgrs()
-    gauss_kruger()
+    if sys.argv[1:] != ["web"]:
+        utm_ups()
+        mgrs()
+        gauss_kruger()
+    web_mercator()
+    tiles()
