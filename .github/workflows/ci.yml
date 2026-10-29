@@ -203,6 +203,8 @@ jobs:
             target: pgm
           - crate: kinavis-grid
             target: mgrs
+          - crate: kinavis-grid
+            target: tiles
           - crate: kinavis-ubx
             target: deframe
           - crate: kinavis

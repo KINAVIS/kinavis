@@ -1,12 +1,12 @@
 [package]
 name = "kinavis-grid"
-description = "Map grids for the KINAVIS navigation crates: transverse Mercator, UTM/UPS, Gauss-Kruger and national grids, meridian convergence, without an allocator."
+description = "Map grids for the KINAVIS navigation crates: transverse Mercator, UTM/UPS, Gauss-Kruger and national grids, meridian convergence, Web Mercator and map tiles, without an allocator."
 documentation = "https://docs.rs/kinavis-grid"
 readme = "README.md"
 keywords = ["utm", "gauss-kruger", "projection", "geodesy", "no-std"]
 categories = ["science::geo", "no-std::no-alloc"]
 # Satellite crate, versioned independently of the kernel.
-version = "0.1.0"
+version = "0.1.1"
 authors.workspace = true
 edition.workspace = true
 rust-version.workspace = true

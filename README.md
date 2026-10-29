@@ -123,7 +123,7 @@ graph BT
 | [`kinavis-ubx`](https://docs.rs/kinavis-ubx) | the u-blox UBX protocol: fixes with the receiver's accuracy and RTK status, satellites with residuals, dual-antenna heading, inertial and wheel measurements |
 | [`kinavis-integrity`](https://docs.rs/kinavis-integrity) | GNSS integrity: RAIM fault detection and exclusion, horizontal and vertical protection levels |
 | [`kinavis-geoid`](https://docs.rs/kinavis-geoid) | geoid heights from a global grid, EGM96 embedded: heights above the ellipsoid to heights above mean sea level |
-| [`kinavis-grid`](https://docs.rs/kinavis-grid) | map grids: transverse Mercator, UTM/UPS, MGRS, Gauss–Krüger zones (СК-42, СК-95, ГСК-2011) and national grids, grid north |
+| [`kinavis-grid`](https://docs.rs/kinavis-grid) | map grids: transverse Mercator, UTM/UPS, MGRS, Gauss–Krüger zones (СК-42, СК-95, ГСК-2011) and national grids, grid north; Web Mercator and map tiles |
 | [`kinavis-wmm`](https://docs.rs/kinavis-wmm) | the World Magnetic Model 2025: magnetic variation at any position |
 
 **Inertial**

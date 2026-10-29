@@ -1,5 +1,6 @@
 //! Map grids for the KINAVIS crates: transverse Mercator, UTM and UPS, MGRS,
-//! Gauss–Krüger zones and national grids, grid north.
+//! Gauss–Krüger zones and national grids, grid north; Web Mercator and the
+//! tiles of web maps.
 //!
 //! A grid turns latitude and longitude into eastings and northings in metres
 //! on a plane, the coordinates of topographic maps, surveys and field
@@ -36,7 +37,8 @@
 //! The transverse Mercator uses Krüger's series to sixth order in the third
 //! flattening (Karney 2011), transcribed from GeographicLib: about 5 nm within
 //! 3900 km of the central meridian, far beyond any zone. Polar stereographic
-//! is exact. Datum shifts are the kernel's, with their stated accuracy.
+//! is exact. Datum shifts are the kernel's, with their stated accuracy. Web
+//! Mercator is exact on its sphere, by definition.
 //!
 //! # Feature flags
 //!
@@ -59,6 +61,7 @@ mod mgrs;
 mod tm;
 mod ups;
 mod utm;
+mod web;
 
 use kinavis_kernel::{Angle, Variation};
 
@@ -66,6 +69,10 @@ pub use crs::ProjectedCrs;
 pub use mgrs::{Mgrs, MgrsSquare, MAX_MGRS_PRECISION};
 pub use tm::{Projected, TmParameters, TransverseMercator};
 pub use utm::{Gridded, Hemisphere, UtmUps, UtmZone, UPS_SCALE, UTM_SCALE};
+pub use web::{
+    metres_per_pixel, Quadkey, Tile, TileBounds, TilePoint, WebMercator, MAX_ZOOM, TILE_PIXELS,
+    WEB_MERCATOR_MAX_LATITUDE, WEB_MERCATOR_RADIUS,
+};
 
 /// Angle from grid north to magnetic north, east positive: the grid magnetic
 /// angle printed in a map's margin, `variation − convergence`.

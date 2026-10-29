@@ -19,4 +19,7 @@ fn projections_and_references_stay_small() {
     within::<kinavis_grid::ProjectedCrs>(320);
     within::<kinavis_grid::Mgrs>(32);
     within::<kinavis_grid::Gridded>(48);
+    within::<kinavis_grid::Tile>(12);
+    within::<kinavis_grid::TilePoint>(32);
+    within::<kinavis_grid::Quadkey>(31);
 }

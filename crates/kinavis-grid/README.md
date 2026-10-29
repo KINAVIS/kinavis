@@ -2,7 +2,8 @@
 
 Map grids for the [KINAVIS](https://github.com/KINAVIS/kinavis) crates:
 transverse Mercator, UTM and UPS, Gauss–Krüger zones and national grids, with
-the meridian convergence and point scale at every point.
+the meridian convergence and point scale at every point; Web Mercator and the
+tiles of web maps.
 
 ```rust
 use kinavis_grid::{ProjectedCrs, UtmUps};
@@ -26,13 +27,21 @@ println!("{:?} {:.0} {:.0}", utm.coordinate, sk42.easting.metres(), sk42.northin
 - **MGRS**: references at 0 to 11 digits (100 km to 1 µm), truncating as the
   system requires, and read back to the centre of the square; UPS lettering
   near the poles. Lettering of WGS 84 and other modern ellipsoids.
+- **Web Mercator** (EPSG:3857), the display grid of web maps: the Mercator
+  of a sphere of the WGS 84 semi-major axis, not conformal on the ellipsoid;
+  the square map ends at ±85.0511°. **XYZ tiles**: the tile and pixel of a
+  point at zooms 0 to 30, tile edges, parent and children, quadkeys, ground
+  metres per pixel.
 - **Grid north**: the convergence turns a true course into a grid course
   (`TrueCourse::to_grid`); `grid_magnetic_angle` gives the angle in a map's
   margin.
 
 Checked against GeographicLib's `GeoConvert` (UTM/UPS, convergence and scale,
 to 10 µm, 4649 points; MGRS references and squares, 5400 points) and PROJ
-(every preset, to 1 mm, 10 000 points); the MGRS reader is fuzzed. `no_std`,
+(every preset, to 1 mm, 10 000 points); Web Mercator against PROJ (both ways,
+1 µm and 10⁻¹²°, 5030 points), tiles, quadkeys and tile edges against
+mercantile (zooms 0 to 30, 4769 points); the MGRS and quadkey readers are
+fuzzed. `no_std`,
 no allocation.
 
 ## Feature flags
