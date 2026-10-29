@@ -6,7 +6,7 @@ readme = "README.md"
 keywords = ["j1939", "can", "isobus", "transport-protocol", "no-std"]
 categories = ["embedded", "no-std::no-alloc", "parser-implementations"]
 # Satellite crate, versioned independently of the kernel.
-version = "0.1.0"
+version = "0.1.1"
 authors.workspace = true
 edition.workspace = true
 rust-version.workspace = true

@@ -12,7 +12,7 @@
 //! 3. **Transport protocol** for 9 to 1785 bytes: [`TransportReceiver`]
 //!    (broadcast and connections, as a participant or a bus monitor),
 //!    [`broadcast`] and [`TransportSender`]; **extended transport** for more,
-//!    [`ExtendedReceiver`].
+//!    [`ExtendedReceiver`] and [`ExtendedSender`].
 //!
 //! Each is a state machine over frames and instants: frames from the bus go
 //! in with the time they arrived, frames to send come out. The CAN
@@ -68,7 +68,7 @@ mod transport;
 
 pub use claim::{request, AddressClaimer, ClaimState, CONTENTION_TIME, FIRST_DYNAMIC_ADDRESS};
 pub use error::J1939Error;
-pub use extended::{ExtendedReceiver, ETP_MAX_BYTES};
+pub use extended::{ExtendedReceiver, ExtendedSender, ETP_MAX_BYTES};
 pub use frame::Frame;
 pub use id::{CanId, Pgn};
 pub use name::{Name, NameFields};

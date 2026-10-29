@@ -1,15 +1,16 @@
 //! Extended transport protocol (ETP, ISO 11783-3): transfers of 1786 bytes
 //! up to 117 440 505 to one node, in windows placed by a data packet offset.
 //!
-//! Reception only, as a participant or a silent observer; the frames to send
-//! come out, timing is the caller's (the T1 and T2 of the transport
-//! protocol apply).
+//! Reception as a participant or a silent observer, and the sender of one
+//! transfer; the frames to send come out, timing is the caller's (the T1 to
+//! T4 of the transport protocol apply).
 
 use kinavis_kernel::time::{Instant, Utc};
 
+use crate::error::J1939Error;
 use crate::frame::Frame;
 use crate::id::{CanId, Pgn};
-use crate::transport::{AbortReason, Received, Transfer, T1, T2};
+use crate::transport::{AbortReason, Received, SenderState, Transfer, T1, T2, T3, T4};
 
 /// Longest extended transfer, bytes: 2²⁴ − 1 packets of 7.
 pub const ETP_MAX_BYTES: u32 = 117_440_505;
@@ -22,6 +23,10 @@ const CTS: u8 = 21;
 const DPO: u8 = 22;
 const END_OF_MESSAGE: u8 = 23;
 const ABORT: u8 = 255;
+
+/// Abort code of a clear-to-send asking for packets past the end of the
+/// transfer, ISO 11783-3.
+const CTS_PAST_END: u8 = 15;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct Session<const B: usize> {
@@ -343,6 +348,178 @@ fn end_of_message(source: u8, destination: u8, pgn: Pgn, size: usize) -> Frame {
         source,
         destination,
         [END_OF_MESSAGE, s0, s1, s2, s3, p0, p1, p2],
+    )
+}
+
+/// Sender of one extended transfer from `source` to `destination`, the data
+/// borrowed.
+///
+/// Each clear-to-send is answered with the offset message and the packets it
+/// grants, at most 255 in one call of [`ExtendedSender::handle`]; the pace at
+/// which they reach the bus is the caller's.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ExtendedSender<'a> {
+    pgn: Pgn,
+    source: u8,
+    destination: u8,
+    data: &'a [u8],
+    packets: u32,
+    state: SenderState,
+    since: Instant<Utc>,
+}
+
+impl<'a> ExtendedSender<'a> {
+    /// Sender of `data` from `source` to `destination`.
+    ///
+    /// # Errors
+    ///
+    /// [`J1939Error::TooLong`] for fewer than 1786 bytes (the transport
+    /// protocol carries them) or more than [`ETP_MAX_BYTES`].
+    pub fn new(pgn: Pgn, source: u8, destination: u8, data: &'a [u8]) -> Result<Self, J1939Error> {
+        let size = u32::try_from(data.len()).unwrap_or(u32::MAX);
+        if !(1786..=ETP_MAX_BYTES).contains(&size) {
+            return Err(J1939Error::TooLong {
+                pgn,
+                size,
+                limit: ETP_MAX_BYTES,
+            });
+        }
+        Ok(Self {
+            pgn,
+            source,
+            destination,
+            data,
+            packets: size.div_ceil(7),
+            state: SenderState::Idle,
+            since: Instant::UNIX_EPOCH,
+        })
+    }
+
+    /// State.
+    #[must_use]
+    pub const fn state(&self) -> SenderState {
+        self.state
+    }
+
+    /// Starts: the request to send.
+    #[must_use]
+    pub fn start(&mut self, at: Instant<Utc>) -> Frame {
+        self.state = SenderState::Waiting;
+        self.since = at;
+        let [s0, s1, s2, s3] = u32::try_from(self.data.len())
+            .unwrap_or(u32::MAX)
+            .to_le_bytes();
+        let [p0, p1, p2] = self.pgn.to_bytes();
+        frame(
+            self.source,
+            self.destination,
+            [RTS, s0, s1, s2, s3, p0, p1, p2],
+        )
+    }
+
+    /// Takes in a frame from the bus; the offset message and the packets a
+    /// clear-to-send asks for, or the abort it calls for, go to `send`.
+    ///
+    /// A clear-to-send may ask for any packets again, also after the last
+    /// one; one starting past the end aborts the transfer.
+    pub fn handle(&mut self, frame: &Frame, at: Instant<Utc>, mut send: impl FnMut(Frame)) {
+        let id = frame.id;
+        let ours = id.pgn() == Pgn::ETP_CONNECTION
+            && id.source() == self.destination
+            && id.destination() == Some(self.source);
+        let Ok(bytes) = <[u8; 8]>::try_from(frame.data()) else {
+            return;
+        };
+        let [control, count, n0, n1, n2, p0, p1, p2] = bytes;
+        if !ours || Pgn::from_bytes([p0, p1, p2]) != self.pgn {
+            return;
+        }
+        if matches!(
+            self.state,
+            SenderState::Done | SenderState::Aborted(_) | SenderState::Idle
+        ) {
+            return;
+        }
+        match control {
+            CTS if count == 0 => {
+                self.state = SenderState::Holding;
+                self.since = at;
+            }
+            CTS => {
+                let next = u32::from_le_bytes([n0, n1, n2, 0]);
+                if next == 0 || next > self.packets {
+                    let reason = AbortReason::from_code(CTS_PAST_END);
+                    self.state = SenderState::Aborted(reason);
+                    send(abort(self.source, self.destination, self.pgn, reason));
+                    return;
+                }
+                let offset = next.saturating_sub(1);
+                let window = grant(count, self.packets, offset);
+                send(data_packet_offset(
+                    self.source,
+                    self.destination,
+                    self.pgn,
+                    window,
+                    offset,
+                ));
+                for sequence in 1..=window {
+                    let packet = offset.saturating_add(u32::from(sequence));
+                    let start = usize::try_from(packet.saturating_sub(1))
+                        .unwrap_or(usize::MAX)
+                        .saturating_mul(7);
+                    let end = start.saturating_add(7).min(self.data.len());
+                    let chunk = self.data.get(start..end).unwrap_or(&[]);
+                    send(data_packet(self.source, self.destination, sequence, chunk));
+                }
+                self.state = SenderState::Waiting;
+                self.since = at;
+            }
+            END_OF_MESSAGE => self.state = SenderState::Done,
+            ABORT => self.state = SenderState::Aborted(AbortReason::from_code(count)),
+            _ => {}
+        }
+    }
+
+    /// Gives up after T3 without an answer or T4 on hold; the abort goes to
+    /// `send`.
+    pub fn poll(&mut self, at: Instant<Utc>, mut send: impl FnMut(Frame)) {
+        let limit = match self.state {
+            SenderState::Waiting => T3,
+            SenderState::Holding => T4,
+            _ => return,
+        };
+        let expired = at
+            .checked_duration_since(self.since)
+            .is_some_and(|waited| waited > limit);
+        if expired {
+            self.state = SenderState::Aborted(AbortReason::Timeout);
+            send(abort(
+                self.source,
+                self.destination,
+                self.pgn,
+                AbortReason::Timeout,
+            ));
+        }
+    }
+}
+
+fn data_packet_offset(source: u8, destination: u8, pgn: Pgn, packets: u8, offset: u32) -> Frame {
+    let [o0, o1, o2, _] = offset.to_le_bytes();
+    let [p0, p1, p2] = pgn.to_bytes();
+    frame(source, destination, [DPO, packets, o0, o1, o2, p0, p1, p2])
+}
+
+fn data_packet(source: u8, destination: u8, sequence: u8, chunk: &[u8]) -> Frame {
+    let mut bytes = [0xFF; 8];
+    if let Some((first, rest)) = bytes.split_first_mut() {
+        *first = sequence;
+        for (slot, byte) in rest.iter_mut().zip(chunk) {
+            *slot = *byte;
+        }
+    }
+    Frame::truncated(
+        CanId::from_parts(PRIORITY, Pgn::ETP_DATA, destination, source),
+        &bytes,
     )
 }
 

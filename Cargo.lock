@@ -156,7 +156,7 @@ dependencies = [
 
 [[package]]
 name = "kinavis-j1939"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "kinavis-kernel",
  "proptest",

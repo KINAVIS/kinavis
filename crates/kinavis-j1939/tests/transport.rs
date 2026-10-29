@@ -1,6 +1,6 @@
 //! Transport protocols: broadcasts of every length, connections with flow
 //! control between a sender and a receiver with a monitor listening, lost
-//! packets, timeouts, refusals, and the extended protocol.
+//! packets, timeouts, refusals, and the extended protocol both ways.
 
 #![allow(
     clippy::unwrap_used,
@@ -12,8 +12,8 @@
 use core::time::Duration;
 
 use kinavis_j1939::{
-    broadcast, AbortReason, CanId, ExtendedReceiver, Frame, Pgn, SenderState, TransportReceiver,
-    TransportSender, TP_MAX_BYTES,
+    broadcast, AbortReason, CanId, ExtendedReceiver, ExtendedSender, Frame, Pgn, SenderState,
+    TransportReceiver, TransportSender, ETP_MAX_BYTES, TP_MAX_BYTES,
 };
 use kinavis_kernel::{Instant, Utc};
 use proptest::prelude::*;
@@ -263,4 +263,280 @@ fn an_extended_transfer_too_small_or_too_large_is_refused() {
         assert_eq!(receiver.pending(), 0);
     }
     assert_eq!(CanId::new(0x1CC8_261C).unwrap().pgn(), Pgn::ETP_CONNECTION);
+}
+
+/// One extended connection from 0x1C to 0x26 on a bus with a monitor, as
+/// [`exchange`] does for the transport protocol.
+fn extended_exchange(
+    len: usize,
+    window: u8,
+    lose: Option<u8>,
+) -> (SenderState, Vec<Vec<u8>>, Vec<AbortReason>) {
+    let data = bytes(len, 5);
+    let mut sender = ExtendedSender::new(TASK_DATA, 0x1C, 0x26, &data).unwrap();
+    let mut receiver = ExtendedReceiver::<1, 40_000>::new(Some(0x26)).with_window(window);
+    let mut monitor = ExtendedReceiver::<1, 40_000>::new(None);
+    let mut lost = lose;
+    let mut bus = vec![sender.start(at(0))];
+    let (mut transfers, mut dropped) = (Vec::new(), Vec::new());
+    let mut steps = 0;
+    while let Some(frame) = bus.pop() {
+        steps += 1;
+        assert!(steps < 100_000, "the exchange does not end");
+        let is_lost = frame.id.pgn() == Pgn::ETP_DATA && frame.data().first() == lost.as_ref();
+        if is_lost {
+            lost = None;
+            continue;
+        }
+        let mut next = Vec::new();
+        if frame.id.source() == 0x1C {
+            let outcome = receiver.push(&frame, at(0));
+            transfers.extend(outcome.transfer.map(|t| t.data().to_vec()));
+            dropped.extend(outcome.dropped);
+            next.extend(outcome.reply);
+        } else {
+            sender.handle(&frame, at(0), |packet| next.push(packet));
+        }
+        let heard = monitor.push(&frame, at(0));
+        assert_eq!(heard.reply, None, "a monitor never answers");
+        transfers.extend(heard.transfer.map(|t| t.data().to_vec()));
+        next.reverse();
+        bus.extend(next);
+    }
+    (sender.state(), transfers, dropped)
+}
+
+proptest! {
+    #[test]
+    fn an_extended_connection_arrives_whole_at_the_receiver_and_the_monitor(
+        len in 1_786usize..=40_000, window in 1u8..=255,
+    ) {
+        let (state, transfers, dropped) = extended_exchange(len, window, None);
+        prop_assert_eq!(state, SenderState::Done);
+        prop_assert!(dropped.is_empty());
+        prop_assert_eq!(transfers.len(), 2);
+        for transfer in &transfers {
+            prop_assert_eq!(transfer, &bytes(len, 5));
+        }
+    }
+}
+
+#[test]
+fn an_extended_connection_arrives_whole_at_the_edges() {
+    // 1792 bytes are 256 whole packets: one more than a window of 255.
+    for (len, window) in [
+        (1_786, 255),
+        (1_792, 255),
+        (1_793, 255),
+        (40_000, 1),
+        (40_000, 7),
+    ] {
+        let (state, transfers, dropped) = extended_exchange(len, window, None);
+        assert_eq!(state, SenderState::Done, "{len} bytes, window {window}");
+        assert_eq!(dropped, Vec::new());
+        assert_eq!(transfers, vec![bytes(len, 5); 2]);
+    }
+}
+
+#[test]
+fn a_lost_extended_packet_aborts_the_connection_on_both_sides() {
+    let (state, transfers, dropped) = extended_exchange(5_000, 40, Some(3));
+    assert_eq!(state, SenderState::Aborted(AbortReason::BadSequence));
+    assert_eq!(transfers, Vec::<Vec<u8>>::new());
+    assert_eq!(dropped, vec![AbortReason::BadSequence]);
+}
+
+/// A connection management frame from 0x26 to 0x1C about [`TASK_DATA`].
+fn etp_control(control: u8, count: u8, word: u32) -> Frame {
+    let w = word.to_le_bytes();
+    let pgn = TASK_DATA.to_bytes();
+    Frame::of(
+        7,
+        Pgn::ETP_CONNECTION,
+        0x1C,
+        0x26,
+        &[control, count, w[0], w[1], w[2], pgn[0], pgn[1], pgn[2]],
+    )
+    .unwrap()
+}
+
+#[test]
+fn a_megabyte_goes_out_window_after_window_past_two_to_the_sixteen_packets() {
+    let data = bytes(1_000_000, 11);
+    let mut sender = ExtendedSender::new(TASK_DATA, 0x1C, 0x26, &data).unwrap();
+    let rts = sender.start(at(0));
+    assert_eq!(rts.id.pgn(), Pgn::ETP_CONNECTION);
+    assert_eq!((rts.id.source(), rts.id.destination()), (0x1C, Some(0x26)));
+    assert_eq!(rts.id.priority(), 7);
+    let [s0, s1, s2, s3] = 1_000_000u32.to_le_bytes();
+    let pgn = TASK_DATA.to_bytes();
+    assert_eq!(rts.data(), &[20, s0, s1, s2, s3, pgn[0], pgn[1], pgn[2]]);
+    let packets = 1_000_000u32.div_ceil(7);
+    let mut received = vec![0u8; 1_000_000];
+    let mut next = 1u32;
+    while next <= packets {
+        let mut frames = Vec::new();
+        sender.handle(&etp_control(21, 255, next), at(0), |f| frames.push(f));
+        let window = (packets - next + 1).min(255);
+        assert_eq!(frames.len(), window as usize + 1);
+        let dpo = frames[0].data();
+        assert_eq!(dpo[..2], [22, window as u8]);
+        assert_eq!(u32::from_le_bytes([dpo[2], dpo[3], dpo[4], 0]), next - 1);
+        assert_eq!(dpo[5..], pgn);
+        for (sequence, frame) in frames[1..].iter().enumerate() {
+            assert_eq!(frame.id.pgn(), Pgn::ETP_DATA);
+            assert_eq!(frame.id.destination(), Some(0x26));
+            assert_eq!(usize::from(frame.data()[0]), sequence + 1);
+            let start = (next as usize - 1 + sequence) * 7;
+            let end = (start + 7).min(received.len());
+            received[start..end].copy_from_slice(&frame.data()[1..1 + end - start]);
+            assert!(frame.data()[1 + end - start..].iter().all(|&b| b == 0xFF));
+        }
+        next += window;
+    }
+    let differs = received
+        .iter()
+        .zip(&data)
+        .position(|(got, sent)| got != sent);
+    assert_eq!(differs, None, "first byte received otherwise than sent");
+    assert_eq!(sender.state(), SenderState::Waiting);
+    sender.handle(&etp_control(23, s0, 1_000_000 >> 8), at(0), |_| {});
+    assert_eq!(sender.state(), SenderState::Done);
+}
+
+#[test]
+fn an_extended_sender_sends_again_what_is_asked_and_aborts_past_the_end() {
+    let data = bytes(2_000, 1);
+    let mut sender = ExtendedSender::new(TASK_DATA, 0x1C, 0x26, &data).unwrap();
+    let _ = sender.start(at(0));
+    let mut first = Vec::new();
+    sender.handle(&etp_control(21, 10, 1), at(0), |f| first.push(f));
+    let mut again = Vec::new();
+    sender.handle(&etp_control(21, 10, 1), at(10), |f| again.push(f));
+    assert_eq!(first, again, "the same window asked twice");
+    // The last packet, 286, asked for with room for ten.
+    let mut last = Vec::new();
+    sender.handle(&etp_control(21, 10, 286), at(20), |f| last.push(f));
+    assert_eq!(last.len(), 2);
+    assert_eq!(last[0].data()[1], 1);
+    assert_eq!(
+        &last[1].data()[1..],
+        &[
+            data[1_995],
+            data[1_996],
+            data[1_997],
+            data[1_998],
+            data[1_999],
+            0xFF,
+            0xFF
+        ]
+    );
+    let mut owed = Vec::new();
+    sender.handle(&etp_control(21, 1, 287), at(30), |f| owed.push(f));
+    assert_eq!(sender.state(), SenderState::Aborted(AbortReason::Other(15)));
+    assert_eq!(owed.len(), 1);
+    assert_eq!(owed[0].data()[..2], [255, 15]);
+    assert_eq!(
+        (owed[0].id.source(), owed[0].id.destination()),
+        (0x1C, Some(0x26))
+    );
+}
+
+#[test]
+fn an_extended_sender_holds_then_times_out() {
+    let data = bytes(3_000, 1);
+    let mut sender = ExtendedSender::new(TASK_DATA, 0x1C, 0x26, &data).unwrap();
+    let _ = sender.start(at(0));
+    let mut sent = Vec::new();
+    // Frames of others, of another group or too short change nothing.
+    let other = Frame::of(
+        7,
+        Pgn::ETP_CONNECTION,
+        0x1C,
+        0x27,
+        etp_control(21, 5, 1).data(),
+    )
+    .unwrap();
+    sender.handle(&other, at(0), |f| sent.push(f));
+    sender.handle(
+        &Frame::of(
+            7,
+            Pgn::TP_CONNECTION,
+            0x1C,
+            0x26,
+            etp_control(21, 5, 1).data(),
+        )
+        .unwrap(),
+        at(0),
+        |f| sent.push(f),
+    );
+    sender.handle(
+        &Frame::of(7, Pgn::ETP_CONNECTION, 0x1C, 0x26, &[21, 5]).unwrap(),
+        at(0),
+        |f| sent.push(f),
+    );
+    assert_eq!(sent, Vec::new());
+    sender.handle(&etp_control(21, 0, 1), at(500), |f| sent.push(f));
+    assert_eq!(sender.state(), SenderState::Holding);
+    sender.poll(at(1_500), |f| sent.push(f));
+    assert_eq!(sent, Vec::new(), "T4 is 1050 ms");
+    sender.handle(&etp_control(21, 0, 1), at(1_500), |f| sent.push(f));
+    sender.poll(at(2_600), |f| sent.push(f));
+    assert_eq!(sender.state(), SenderState::Aborted(AbortReason::Timeout));
+    assert_eq!(sent.len(), 1);
+    assert_eq!(sent[0].data()[..2], [255, 3]);
+    // Nothing after an abort.
+    sender.handle(&etp_control(21, 5, 1), at(2_700), |f| sent.push(f));
+    assert_eq!(sent.len(), 1);
+}
+
+#[test]
+fn an_extended_sender_waits_t3_for_each_answer() {
+    let data = bytes(3_000, 1);
+    let mut sender = ExtendedSender::new(TASK_DATA, 0x1C, 0x26, &data).unwrap();
+    let _ = sender.start(at(0));
+    let mut sent = Vec::new();
+    sender.poll(at(1_250), |f| sent.push(f));
+    sender.handle(&etp_control(21, 255, 1), at(1_250), |f| sent.push(f));
+    assert_eq!(sent.len(), 256);
+    sender.poll(at(2_500), |f| sent.push(f));
+    assert_eq!(sender.state(), SenderState::Waiting);
+    sender.poll(at(2_501), |f| sent.push(f));
+    assert_eq!(sender.state(), SenderState::Aborted(AbortReason::Timeout));
+}
+
+#[test]
+fn an_extended_transfer_too_large_for_the_receiver_is_refused_to_the_sender() {
+    let data = bytes(5_000, 1);
+    let mut sender = ExtendedSender::new(TASK_DATA, 0x1C, 0x26, &data).unwrap();
+    let mut receiver = ExtendedReceiver::<1, 4_096>::new(Some(0x26));
+    let reply = receiver
+        .push(&sender.start(at(0)), at(0))
+        .reply
+        .expect("an abort");
+    sender.handle(&reply, at(0), |_| {});
+    assert_eq!(
+        sender.state(),
+        SenderState::Aborted(AbortReason::ResourcesNeeded)
+    );
+}
+
+#[test]
+fn an_extended_sender_takes_only_what_the_transport_protocol_cannot() {
+    assert!(ExtendedSender::new(TASK_DATA, 0x1C, 0x26, &[0; TP_MAX_BYTES]).is_err());
+    assert!(ExtendedSender::new(TASK_DATA, 0x1C, 0x26, &[0; TP_MAX_BYTES + 1]).is_ok());
+    let too_long = vec![0u8; ETP_MAX_BYTES as usize + 1];
+    assert!(ExtendedSender::new(TASK_DATA, 0x1C, 0x26, &too_long).is_err());
+    let longest = &too_long[1..];
+    let mut sender = ExtendedSender::new(TASK_DATA, 0x1C, 0x26, longest).unwrap();
+    let rts = sender.start(at(0));
+    assert_eq!(
+        u32::from_le_bytes(rts.data()[1..5].try_into().unwrap()),
+        ETP_MAX_BYTES
+    );
+    // The last of 2²⁴ − 1 packets.
+    let mut last = Vec::new();
+    sender.handle(&etp_control(21, 255, 0xFF_FFFF), at(0), |f| last.push(f));
+    assert_eq!(last.len(), 2);
+    assert_eq!(&last[0].data()[..5], &[22, 1, 0xFE, 0xFF, 0xFF]);
 }
