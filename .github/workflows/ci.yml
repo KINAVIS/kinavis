@@ -135,6 +135,26 @@ jobs:
       - run: cargo test -p kinavis-isobus --test polycan -- --ignored
         env:
           POLYCAN_LOGS: ${{ runner.temp }}/polycan/CANable/logs/oldLogs
+      # Newson and Krumm's drive through Seattle (Microsoft Research; no
+      # licence stated: fetched, never committed), checked by digest.
+      - name: Fetch the Seattle drive
+        run: |
+          mkdir -p "$RUNNER_TEMP/seattle"
+          cd "$RUNNER_TEMP/seattle"
+          base=https://www.microsoft.com/en-us/research/wp-content/uploads/2017/07
+          for f in gps_data.txt road_network.zip ground_truth_route.txt; do
+            curl -sfSL --retry 3 -o "$f" "$base/$f"
+          done
+          printf '%s  %s\n' \
+            d68a05a15564d961c0a0a4f2e905362e9dd86772ece98cc0b6835cf41d705bf6 gps_data.txt \
+            6e561e0bb347f463244718cc60a1ae6720de3eaad88bd12d0474d7707d71ccaa road_network.zip \
+            539c380d20e11d71bbf4ad14d54e0377fd583ed545546fdfc9a910e3f7ea1ef9 ground_truth_route.txt \
+            | sha256sum -c -
+          unzip -q road_network.zip
+      # Every fix kept on the road driven, against ground_truth_route.txt.
+      - run: cargo test --release -p kinavis-land --test seattle -- --ignored
+        env:
+          SEATTLE_DATA: ${{ runner.temp }}/seattle
 
   no-std:
     name: Build for a bare-metal target

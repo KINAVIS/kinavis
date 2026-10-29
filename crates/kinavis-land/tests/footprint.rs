@@ -23,4 +23,7 @@ fn grids_fixes_and_legs_stay_small() {
     within::<kinavis_land::ThreePointFix>(40);
     within::<kinavis_land::Leg>(16);
     within::<kinavis_land::PaceCount>(8);
+    // 8 candidates a fix over a window of 16 fixes.
+    within::<kinavis_land::MapMatcher<8, 16>>(10_496);
+    within::<kinavis_land::Candidate>(56);
 }

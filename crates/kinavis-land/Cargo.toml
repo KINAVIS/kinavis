@@ -1,12 +1,12 @@
 [package]
 name = "kinavis-land"
-description = "Land navigation for the KINAVIS navigation crates: grid, true and magnetic bearings, mils, intersection and resection on a map grid, pace counting and routes by bearing, without an allocator."
+description = "Land navigation for the KINAVIS navigation crates: grid, true and magnetic bearings, mils, intersection and resection on a map grid, pace counting, routes by bearing and map matching, without an allocator."
 documentation = "https://docs.rs/kinavis-land"
 readme = "README.md"
 keywords = ["land-navigation", "resection", "orienteering", "map-grid", "no-std"]
 categories = ["science::geo", "no-std::no-alloc", "algorithms"]
 # Satellite crate, versioned independently of the kernel.
-version = "0.1.0"
+version = "0.1.1"
 authors.workspace = true
 edition.workspace = true
 rust-version.workspace = true
