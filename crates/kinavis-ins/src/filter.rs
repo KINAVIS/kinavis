@@ -898,6 +898,14 @@ impl InsFilter {
         self.nominal.position()
     }
 
+    /// Displacement from the starting point: north, east, down. A walker's
+    /// track, or a vehicle's, without the round trip through latitude and
+    /// longitude.
+    #[must_use]
+    pub fn displacement(&self) -> Vector3<Ned, Distance> {
+        self.nominal.displacement()
+    }
+
     /// Ground velocity.
     #[must_use]
     pub fn velocity(&self) -> Vector3<Ned, Speed> {

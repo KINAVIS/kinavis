@@ -13,6 +13,10 @@
 //!    into the mechanisation to bound drift. On land also: an antenna at a
 //!    lever arm, the wheel speed and the non-holonomic constraint at the
 //!    point they hold for, and the heading of a two-antenna baseline.
+//! 3. **Pedestrian dead reckoning**: [`StanceDetector`] for the
+//!    zero-velocity updates of a foot-mounted IMU, [`StepDetector`] and
+//!    [`weinberg_length`] for steps, [`tilt_compensated_heading`] for a
+//!    compass.
 //!
 //! Outputs are kernel types: [`Position`], a [`Vector3`] of [`Speed`], an
 //! [`Attitude`] with yaw as [`TrueCourse`], plus sigmas and the error ellipse;
@@ -104,12 +108,17 @@ mod filter;
 mod imu;
 mod mechanisation;
 mod motion;
+mod pedestrian;
 
 pub use attitude::{Attitude, Quaternion};
 pub use filter::{InsFilter, InsPriors, InsUpdate, ERROR_STATE_DIM};
 pub use imu::{ImuNoise, ImuSample};
 pub use mechanisation::{gravity_down, Strapdown, EARTH_RATE};
 pub use motion::InsMotion;
+pub use pedestrian::{
+    tilt_compensated_heading, weinberg_length, Stance, StanceConfig, StanceDetector, Step,
+    StepConfig, StepDetector, MAX_STANCE_WINDOW,
+};
 
 // Re-exported so callers need not depend on the kernel for the gate type.
 pub use kinavis_kernel::estimation::GatingPolicy;

@@ -191,6 +191,26 @@ jobs:
       - run: cargo test -p kinavis-terrain --test srtm -- --ignored
         env:
           SRTM_TILES: ${{ runner.temp }}/srtm
+      # A foot-mounted IMU (University of Toronto, PyShoe; no licence: fetched,
+      # never committed), checked by digest and turned to text.
+      - name: Fetch the PyShoe trials
+        run: |
+          mkdir -p "$RUNNER_TEMP/pyshoe"
+          cd "$RUNNER_TEMP/pyshoe"
+          awk '{print $2}' "$GITHUB_WORKSPACE/crates/kinavis-ins/tests/data/pyshoe.sha256" | while read -r path; do
+            mkdir -p "$(dirname "$path")"
+            curl -sfS --retry 3 -o "$path" "ftp://128.100.201.179/2019-pyshoe/$path"
+          done
+          sha256sum -c "$GITHUB_WORKSPACE/crates/kinavis-ins/tests/data/pyshoe.sha256"
+          # A venv: `-I` skips the user site-packages where pip installs otherwise.
+          python3 -m venv "$RUNNER_TEMP/py"
+          "$RUNNER_TEMP/py/bin/python" -m pip install --quiet numpy==2.5.4 scipy==1.18.1
+          "$RUNNER_TEMP/py/bin/python" -I "$GITHUB_WORKSPACE/crates/kinavis-ins/tools/pyshoe_text.py" . text
+      # Stance flags exactly PyShoe's; the filter's error against PyShoe's
+      # published one.
+      - run: cargo test --release -p kinavis-ins --test pyshoe -- --ignored
+        env:
+          PYSHOE_DATA: ${{ runner.temp }}/pyshoe
 
   no-std:
     name: Build for a bare-metal target

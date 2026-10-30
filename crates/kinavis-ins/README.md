@@ -16,6 +16,16 @@ an IMU and a 15-state error-state Kalman filter.
   velocity), both at the point they hold for (the rear axle, with the IMU
   in the cab: `v + ω × l`), and the heading of a two-antenna baseline with
   its length checked.
+- On foot: the stance phase of a foot-mounted IMU by the SHOE test, for
+  zero-velocity updates (`StanceDetector`); steps on the specific force and
+  their length by Weinberg's rule (`StepDetector`, `weinberg_length`); the
+  magnetic heading of a tilted sensor (`tilt_compensated_heading`); the
+  walker's track as a displacement from the start. Checked on the
+  University of Toronto foot-mounted dataset (PyShoe; fetched, not in the
+  repository): the stance flags of all 56 VICON trials exactly PyShoe's, and
+  the track by PyShoe's own error measure 0.83 of PyShoe's error in the
+  VICON area and 1.12 of it along 11 hallway walks of 215 m, closing to
+  1.0 % of the path.
 - `InsMotion` — the INS as a process model for the six-state estimator in
   `kinavis`.
 - No allocation, no panics. Filter consistency verified by Monte Carlo tests:
