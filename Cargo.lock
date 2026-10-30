@@ -106,9 +106,12 @@ dependencies = [
  "kinavis-grid",
  "kinavis-integrity",
  "kinavis-kernel",
+ "kinavis-land",
  "kinavis-nmea0183",
+ "kinavis-terrain",
  "kinavis-traffic",
  "kinavis-ubx",
+ "kinavis-wmm",
 ]
 
 [[package]]
